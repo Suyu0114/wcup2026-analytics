@@ -40,7 +40,7 @@
 | ⚠️ 多 snapshot | 4,683 列 = 127 年快照 × 48 隊（含每隊一列 live）。**ingest 取每隊「不在未來」的最新快照**（見 §4.1）——直接 `max()` 會抓到 future-dated 的年底欄位（如 2026-12-31，數值複製自 live），provenance 變假。 |
 | Canonical key | 用 CSV 的 `country_code`（eloratings 兩碼，如 `EN`/`KR`/`BR`）當 `team_id`。**不要 hardcode FIFA 三碼**——沒有來源原生提供，硬背容易錯（CRO vs CRC 之類）。team_id 是內部 key，使用者看的是 name_en/name_zh。 |
 | 授權義務 | 標註來源 + share-alike（站上放 attribution footer） |
-| 檔案位置 | `etl/data/raw/elo/elo_ratings_wc2026_<snapshot_date>.csv`（README 留旁邊） |
+| 檔案位置 | `etl/data/raw/elo/elo_ratings_wc2026.csv`（Kaggle 原檔名，無日期後綴；真實 as-of 來自 CSV 的 `snapshot_date` 欄 → 存進 `teams.elo_asof`，不靠檔名）。README 留旁邊。 |
 | Adapter | `RatingSource` 介面：`get_ratings() -> list[{team_id, name_en, elo, asof, confederation, is_host}]`。v1 = `CsvRatingSource`（含 max-snapshot filter）。未來可加 `EloRatingsTsvSource`（即時）或 `ComputedEloSource`（自賽果算）。 |
 
 **避坑**：`api.clubelo.com` 是俱樂部 Elo，**不可**用於國家隊。
@@ -49,7 +49,7 @@
 
 - 分組已抽完（12 組 A–L，每組 4 隊）。賽程 6/11–7/19。
 - **來源 = football-data.org v4**（免費 tier 即含 World Cup，10 calls/min；有 fixtures/standings/scorers，無賠率——賠率走 The Odds API）。
-- Base `https://api.football-data.org/v4`，header `X-Auth-Token: <TOKEN>`（免費註冊；token 放環境變數，勿進 git）。
+- Base `https://api.football-data.org/v4`，HTTP header `X-Auth-Token: <TOKEN>`，token 存環境變數 **`FOOTBALL_DATA_TOKEN`**（⚠️ env 變數名不可用連字號——GitHub Actions secret / shell `export` 都不吃 `-`；連字號的是 HTTP header，不是 env 名）。免費註冊取得，勿進 git。
 
 P0 用到的 endpoint（每次 refresh 約 3 calls，遠低於 10/min；rate limit 打在 ETL 上，非網站訪客）：
 

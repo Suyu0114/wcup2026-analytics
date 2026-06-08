@@ -39,7 +39,7 @@ engine/                ← Dixon–Coles 引擎（spec §5）
 
 ## 環境變數
 複製 `.env.example` → `.env`（git-ignored，**勿提交**）：
-- `X-Auth-Token` — football-data.org
+- `FOOTBALL_DATA_TOKEN` — football-data.org（程式發 request 時放進 `X-Auth-Token` header）
 - `SUPABASE_URL` / `SUPABASE_SERVICE_KEY`
 - `ODDS_API_KEY` — P3 才需要
 
