@@ -1,0 +1,11 @@
+# Core ETL + prediction engine
+pandas
+scipy
+requests
+python-dotenv
+
+# Supabase / Postgres client (server-side writes)
+supabase
+
+# Tests (PASS/FAIL smoke-test culture, spec §6)
+pytest
