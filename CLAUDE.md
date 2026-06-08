@@ -36,6 +36,8 @@ engine/                ← Dixon–Coles 引擎（spec §5）
 7. **市場效率**：引擎輸出在 UI **必須與市場賠率並列**，不可單獨呈現為「正確答案」。
 8. **校正參數（`BASE/GAMMA/HFA_ELO/RHO`）是先驗非真理**，待 P3 backtest 用歷史賽果 + 收盤賠率擬合。
 9. **CC BY-SA 4.0**：Elo 資料要標 attribution（網站放 footer）。
+10. **淘汰賽賽前 TBD**：賽前 32 場淘汰賽在 football-data 是 **null 隊伍**。fixtures ingest **只收 72 場有隊的小組賽**、跳過未抽籤者；idempotent 重跑會補上。TF1 的「104 列」是賽事期間不變量，賽前實為 72 收 + 32 skip。⚠️ 與 spec §4.2 / TF1 字面不符（已知、刻意；待 spec 對齊）。
+11. **手動 alias 在 [etl/identity.py](etl/identity.py) `MANUAL_ALIASES`**：實測只 3 隊需手補（Bosnia-Herzegovina→BA、Cape Verde Islands→CV、Congo DR→CD）。spec §2.2 猜的 Türkiye / Côte d'Ivoire / Korea 其實自動對上；換來源要重驗。
 
 ## 環境變數
 複製 `.env.example` → `.env`（git-ignored，**勿提交**）：
@@ -48,6 +50,10 @@ engine/                ← Dixon–Coles 引擎（spec §5）
 market-calibration gate（T10）延到 P3：模型過不了校正，value 判定就是放煙火。
 
 ## 指令
-- 安裝：`pip install -r requirements.txt`
-- 測試：`pytest`
-- （ETL / 引擎 entrypoint 待實作後補上）
+- 安裝：`pip install -r requirements.txt`（建議用 `.venv`）
+- 測試（全離線、不需網路/DB）：`python -m pytest -q`
+- Elo ingest：`python -m etl.ingest_elo [--dry-run]`（`--dry-run` 連 Supabase 都不需要）
+- Alias 種子：`python -m etl.ingest_aliases [--dry-run]`（需 `FOOTBALL_DATA_TOKEN`；**先於** fixtures）
+- Fixtures ingest：`python -m etl.ingest_fixtures [--dry-run]`
+- 不帶 `--dry-run` = 寫入 Supabase，需 `SUPABASE_URL` / `SUPABASE_SERVICE_KEY` + 已套用 [etl/sql/schema.sql](etl/sql/schema.sql)。
+- P1 引擎 entrypoint 待實作。
