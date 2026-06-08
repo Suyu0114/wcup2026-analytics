@@ -47,5 +47,8 @@ Thumbs.db
 .idea/
 *.swp
 
+# ─── Claude Code local config (machine-specific; a shared settings.json is fine) ──
+.claude/settings.local.json
+
 # ─── Notebooks ──────────────────────────────────────────────
 .ipynb_checkpoints/

@@ -6,7 +6,7 @@
 
 ```powershell
 conda activate WC2026
-python -m pytest -q   # 全離線、不需網路/DB，應 16 passed
+python -m pytest -q   # 16 passed 離線；有 Supabase creds 時 TF5 也跑 → 17 passed
 ```
 
 ## conda 環境
@@ -31,7 +31,7 @@ python -m pytest -q   # 全離線、不需網路/DB，應 16 passed
 conda create -n WC2026 python=3.13 -y
 conda activate WC2026
 python -m pip install -r requirements.txt
-python -m pytest -q   # 驗收：16 passed
+python -m pytest -q   # 驗收：16 passed（無 creds，TF5 skip）/ 17 passed（有 Supabase creds）
 ```
 
 > 注意：repo 內另有一個 stdlib `.venv`（Python 3.13），與此 conda env 為兩套並行環境。
@@ -41,13 +41,13 @@ python -m pytest -q   # 驗收：16 passed
 
 | 用途 | 指令 | 需要 |
 |------|------|------|
-| 測試 | `python -m pytest -q` | 無（全離線） |
+| 測試 | `python -m pytest -q` | 離線 16 passed；TF5 需 Supabase creds（缺則自動 skip）→ 17 passed |
 | Elo ingest（乾跑） | `python -m etl.ingest_elo --dry-run` | 無 |
 | Alias 種子（乾跑） | `python -m etl.ingest_aliases --dry-run` | `FOOTBALL_DATA_TOKEN` |
-| Fixtures ingest（乾跑） | `python -m etl.ingest_fixtures --dry-run` | 無 |
+| Fixtures ingest（乾跑） | `python -m etl.ingest_fixtures --dry-run` | `FOOTBALL_DATA_TOKEN` |
 | 實際寫入 Supabase | 去掉 `--dry-run` | `SUPABASE_URL` / `SUPABASE_SERVICE_KEY` + 已套用 [etl/sql/schema.sql](../etl/sql/schema.sql) |
 
 環境變數：複製 `.env.example` → `.env`（git-ignored，勿提交）。詳見 [CLAUDE.md](../CLAUDE.md)。
 
 ---
-最後更新：2026-06-08（建立 WC2026 conda env，pytest 16 passed）。
+最後更新：2026-06-08（建立 WC2026 conda env；加入並驗收 TF5 後：離線 16 passed / 含 Supabase 17 passed）。
