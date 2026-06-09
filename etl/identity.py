@@ -62,3 +62,35 @@ def resolve(alias_map: dict[str, str], tla: str | None, name: str | None) -> str
     if not team_id:
         raise ValueError(f"Unresolved team: tla={tla!r} name={name!r} (not in team_aliases)")
     return team_id
+
+
+# --- odds_api identity (P3 §4.0). The Odds API has yet another spelling set
+# (e.g. 'Czech Republic', 'Bosnia & Herzegovina'); discovered by dry-run. ---
+MANUAL_ALIASES_ODDS: dict[str, str] = {
+    # Discovered empirically via the alias-seeding dry-run (47/48 auto-match;
+    # 'Bosnia & Herzegovina' resolves via the existing football-data alias).
+    "Czech Republic": "CZ",
+}
+
+
+def build_norm_index(teams: list[dict], aliases: list[dict]) -> dict[str, str]:
+    """normalized(name) -> team_id over Elo names AND existing aliases (fd names+tlas)."""
+    idx: dict[str, str] = {}
+    for t in teams:
+        idx[normalize_name(t["name_en"])] = t["team_id"]
+    for a in aliases:
+        idx.setdefault(normalize_name(a["alias"]), a["team_id"])
+    return idx
+
+
+def resolve_odds_names(names: list[str], norm_index: dict[str, str]) -> tuple[dict[str, str], list[str]]:
+    """Map odds names -> team_id via normalized index, then MANUAL_ALIASES_ODDS. Returns (map, unresolved)."""
+    amap: dict[str, str] = {}
+    unresolved: list[str] = []
+    for n in names:
+        team_id = norm_index.get(normalize_name(n)) or MANUAL_ALIASES_ODDS.get(n)
+        if team_id:
+            amap[n] = team_id
+        else:
+            unresolved.append(n)
+    return amap, unresolved

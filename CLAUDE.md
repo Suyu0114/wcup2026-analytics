@@ -12,18 +12,20 @@ World Cup 2026 Analytics — 賽事預測/分析平台的工程指南。
 - **provenance**：寫入一定帶 as-of / source。
 
 ## 現況 / Scope
-目前只做 **P0（資料層）+ P1（預測引擎）**。P2–P5（晉級模擬、EV/CLV、球員 props、i18n/UI）不在範圍，**不要提前實作**（見 spec §8）。
+已做 **P0（資料層）+ P1（預測引擎）+ P3（EV/value + 賠率 ingest + 校正）**。P2（晉級模擬）/ P4（球員 props）/ P5（i18n/UI）不在範圍，**不要提前實作**（見 spec §8 / [docs/P3-spec.md](docs/P3-spec.md) §10）。
 - **P0** — Supabase schema、Elo ingest、fixtures ingest、identity mapping。
 - **P1** — Dixon–Coles Poisson 引擎 → `match_predictions`（Feature 1：1X2 + 爆冷；Feature 3：大小分）。
+- **P3** — The Odds API → `odds_snapshots`（變動才存）；Pinnacle 去 vig EV/Kelly（[engine/value.py](engine/value.py)，純函數）；`model_total_lines`（實際線重算）；校正學習線（T10，**非 gate**）。spec：[docs/P3-spec.md](docs/P3-spec.md)。
 
 ## 結構
 ```
-docs/P0-P1-spec.md     ← 執行契約（唯一真相來源）
-etl/                   ← ingestion jobs（Elo / fixtures / alias seeding）
-  sql/schema.sql       ← Postgres DDL（spec §3）
+docs/P0-P1-spec.md     ← P0/P1 執行契約；docs/P3-spec.md ← P3 執行契約
+etl/                   ← ingestion + jobs（Elo / fixtures / alias / odds / predict / calibrate）
+  sql/schema.sql       ← Postgres DDL（P0/P1 §3 + P3 §3）
   data/raw/elo/        ← Elo CSV（third-party，git-ignored；provenance 見其 README）
-sources/               ← 資料來源 adapter（RatingSource / FixtureSource）
-engine/                ← Dixon–Coles 引擎（spec §5）
+  ingest_odds*.py      ← P3 賠率 alias seeding + ingest；model_lines.py / calibrate.py
+sources/               ← adapter（RatingSource / FixtureSource / TheOddsApiSource）
+engine/                ← Dixon–Coles 引擎（spec §5）+ value.py（EV/Kelly 純函數，P3 §5）
 ```
 
 ## 高風險陷阱（動 code 前先讀；皆已在 spec 處理）
@@ -38,6 +40,7 @@ engine/                ← Dixon–Coles 引擎（spec §5）
 9. **CC BY-SA 4.0**：Elo 資料要標 attribution（網站放 footer）。
 10. **淘汰賽賽前 TBD**：賽前 32 場淘汰賽在 football-data 是 **null 隊伍**。fixtures ingest **只收 72 場有隊的小組賽**、跳過未抽籤者；idempotent 重跑會補上。TF1 的「104 列」是賽事期間不變量，賽前實為 72 收 + 32 skip。⚠️ 與 spec §4.2 / TF1 字面不符（已知、刻意；待 spec 對齊）。
 11. **手動 alias 在 [etl/identity.py](etl/identity.py) `MANUAL_ALIASES`**：實測只 3 隊需手補（Bosnia-Herzegovina→BA、Cape Verde Islands→CV、Congo DR→CD）。spec §2.2 猜的 Türkiye / Côte d'Ivoire / Korea 其實自動對上；換來源要重驗。
+12. **P3 賠率（[docs/P3-spec.md](docs/P3-spec.md)）**：The Odds API 又一套隊名 → `MANUAL_ALIASES_ODDS`（實測只 `Czech Republic`→CZ）。EV 比 **Pinnacle 去 vig** 不比模型；模型機率與 value **程式層隔離**（engine/value.py 不 import 模型）。`odds_snapshots` **變動才存**（以**價格 vs 最新**比對；⚠️ last_update 會空轉、不可當去重鍵，實測 2026-06-09）。totals 模型圖層在 **Pinnacle 實際線**重算（`model_total_lines`），非 `p_over_2_5`。event→match 用無序隊伍對（淘汰賽再遇要時間/輪次硬判）。
 
 ## 環境變數
 複製 `.env.example` → `.env`（git-ignored，**勿提交**）：
@@ -51,9 +54,12 @@ market-calibration gate（T10）延到 P3：模型過不了校正，value 判定
 
 ## 指令
 canonical env = conda `WC2026`（見 [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md)）。安裝 `pip install -r requirements.txt`。
-- 測試：`python -m pytest -q`（離線 25 passed + 1 skipped；TF5 有 Supabase creds 時跑 → 26 passed）
+- 測試：`python -m pytest -q`（離線測試綠；3 個 odds 整合測試在 `etl.ingest_odds` 後轉綠；TF5/部分需 Supabase creds）
 - Elo ingest：`python -m etl.ingest_elo [--dry-run]`（`--dry-run` 連 Supabase 都不需要）
 - Alias 種子：`python -m etl.ingest_aliases [--dry-run]`（需 `FOOTBALL_DATA_TOKEN`；**先於** fixtures）
 - Fixtures ingest：`python -m etl.ingest_fixtures [--dry-run]`
-- 預測（P1）：`python -m etl.predict [--dry-run]`（讀 `teams`+`matches` → 寫 `match_predictions`，model `dc-v1.0`）
-- 不帶 `--dry-run` = 寫入 Supabase，需 `SUPABASE_URL` / `SUPABASE_SERVICE_KEY` + 已套用 [etl/sql/schema.sql](etl/sql/schema.sql)。
+- 預測（P1）：`python -m etl.predict [--dry-run]`（→ `match_predictions`，model `dc-v1.0`）
+- Odds alias 種子（P3）：`python -m etl.ingest_odds_aliases [--dry-run]`（需 `ODDS_API_KEY`；**先於** odds ingest）
+- Odds ingest（P3）：`python -m etl.ingest_odds [--dry-run]`（1 call/2 credits；含 `model_total_lines` 重算）
+- 校正（P3）：`python -m etl.calibrate`（T10 學習線，非 gate；目前 0 已結算）
+- 不帶 `--dry-run` = 寫入 Supabase，需 `SUPABASE_URL` / `SUPABASE_SERVICE_KEY` + 已套用 [etl/sql/schema.sql](etl/sql/schema.sql)（**P3 三物件需先在 SQL editor 套用**）。

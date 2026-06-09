@@ -34,3 +34,8 @@ def supabase_url() -> str:
 
 def supabase_service_key() -> str:
     return _require("SUPABASE_SERVICE_KEY")
+
+
+def odds_api_key() -> str:
+    """The Odds API key; sent as the `apiKey` query param (P3). Never expose to frontend."""
+    return _require("ODDS_API_KEY")

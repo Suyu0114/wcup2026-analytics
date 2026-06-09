@@ -80,7 +80,7 @@
 ## 3. Schema DDL
 
 ```sql
--- 3.1 賠率快照：append-only；但「賠率真的變動才存一列」（去重鍵 = last_update），避免高頻 poll 灌爆
+-- 3.1 賠率快照：append-only；「賠率真的變動才存一列」由 code 以「價格 vs 最新」判定，避免高頻 poll 灌爆
 create table odds_snapshots (
   snapshot_id   bigserial primary key,
   match_id      text not null references matches(match_id),
@@ -89,11 +89,11 @@ create table odds_snapshots (
   outcome       text not null,                 -- 'home'|'draw'|'away'|'over'|'under'（我方定向）
   point         numeric,                        -- totals 才有（如 2.25）；h2h null
   decimal_odds  numeric not null check (decimal_odds > 1.0),
-  last_update   timestamptz not null,           -- The Odds API 該 market 的最後變動時間 = 去重鍵
+  last_update   timestamptz not null,           -- The Odds API last_update（provenance；⚠️ 同價格也會更新）
   captured_at   timestamptz not null            -- 我方 poll 批次時戳（provenance）
 );
 
--- 變動才存：同一價格（同 last_update）重複 poll 不增列。insert ... on conflict do nothing。
+-- backstop index；真正的 store-on-change 由 code 以「價格 vs 最新」判定（見 §4.1 / §9 B'）。
 create unique index odds_snapshots_change_uniq
   on odds_snapshots (match_id, bookmaker, market, outcome, coalesce(point, -1), last_update);
 
@@ -130,7 +130,7 @@ create table model_total_lines (
 
 ## 4. ETL 契約（P3）
 
-通則 fail-loud、provenance。⚠️ `odds_snapshots` **append-only + 變動才存**（非 upsert 覆蓋）：`insert … on conflict (change_uniq) do nothing`，同價格重複 poll 不增列。
+通則 fail-loud、provenance。⚠️ `odds_snapshots` **append-only + 變動才存**（非 upsert 覆蓋）：`insert_odds_snapshots_dedup` 比對「**incoming 價格 vs 該 (match,book,market,outcome,point) 最新已存價格**」，不同才 insert（分頁取全量避開 1000 列上限）。**不可用 `last_update` 當去重鍵**（會空轉，見 §9 B'）。
 
 ### 4.0 odds_api alias seeding（**先於 odds ingest**）
 
@@ -160,13 +160,13 @@ for ev in data:
     orient = identity if a_id == m.home_team else swapped   # 對齊我方主客
     for bk in ev.bookmakers:
         for mk in bk.markets:                    # h2h / totals
-            lu = mk.last_update                  # 去重鍵
+            lu = mk.last_update                  # provenance（⚠️ 非去重鍵；會空轉）
             for oc in mk.outcomes:
                 outcome, point = map_outcome(mk.key, oc, orient)        # §2.1
                 rows.append(odds_snapshots(match_id=m.match_id, bookmaker=bk.key,
                     market=mk.key, outcome=outcome, point=point,
                     decimal_odds=oc.price, last_update=lu, captured_at=batch_ts))
-insert rows on conflict (change_uniq) do nothing  # 變動才真的進表
+insert_odds_snapshots_dedup(rows)  # 比對 incoming 價格 vs 最新已存價格，不同才 insert
 ```
 
 ### 4.2 Closing（CLV 預備，v1 只存不算）
@@ -304,7 +304,7 @@ report Brier / log-loss(model_p vs 實際) 與 (market_p vs 實際)，同一批
 | **TO3** | totals 形狀 | 每筆 Pinnacle totals 有 `point` + Over & Under 兩邊 price |
 | **TO4** | de-vig h2h | 三邊去 vig `abs(Σp−1)<1e-6` |
 | **TO5** | de-vig totals | 同場同 `point` 兩邊去 vig `abs(Σp−1)<1e-6` |
-| **TO6** | 變動才存 | 同價格（同 `last_update`）重複 poll → **不增列**（`on conflict do nothing` 生效） |
+| **TO6** | 變動才存 | 同價格重複 poll → **不增列**（價格 vs 最新比對；`last_update` 變了也不增列） |
 | **TO7** | closing view | `odds_closing` 對每場每 outcome 取到 kickoff 前最新一筆 |
 | **TO8** | model 線 | `model_total_lines` 每場有「當前 Pinnacle 主線」對應列；由 `lambda_*` 重算（非 `p_over_2_5`）；線移動會新增列 |
 | **TO9** | quota guard | 固定 cadence 估算 ≤500 credits/月（≤250 calls；不傳 regions） |
@@ -327,7 +327,7 @@ report Brier / log-loss(model_p vs 實際) 與 (market_p vs 實際)，同一批
 1. value 用市場非模型；模型程式層隔離 + UI 實驗性標籤（守 P0-P1 §7）。
 2. 賠率走 ETL（key/配額/快照）。
 3. totals 浮動/quarter line：存實際線、line-matching、實際線重算、quarter 標近似。
-4. `odds_snapshots` append-only + 變動才存（last_update 去重），防高頻 poll 灌表。
+4. `odds_snapshots` append-only + 變動才存（**價格 vs 最新**比對；`last_update` 會空轉、非去重鍵），防高頻 poll 灌表。
 5. event→match_id：小組賽 pair 唯一（時間 soft）；淘汰賽再遇需時間/輪次硬判。
 6. region/credits：用 `bookmakers=`，≤10 家任何 region 仍 2 credits（可混 us 書給親友）。
 7. closing 用 view 不用旗標（單一真相來源）。
@@ -340,7 +340,7 @@ report Brier / log-loss(model_p vs 實際) 與 (market_p vs 實際)，同一批
 
 **7 個原始 flag：**
 - **A（event→match_id + 定向）** → 小組賽**無序隊伍對為主鍵**（本身唯一）；`commence_time` 只 soft 確認（微移 warn 不 hard-fail）；淘汰賽日後同隊再遇才用時間/輪次硬判。（§2.1 定向 / §4.1）
-- **B（append-only）** → 保留 append-only，但**「賠率變動才存」**：以 The Odds API 每 market 的 `last_update` 當去重鍵，`on conflict do nothing`。一列＝一次真實變動（line-movement / CLV 更乾淨）；`captured_at` 仍存 provenance。（§3.1 / §4.1）
+- **B（append-only）→ B'（impl 修正，2026-06-09）**：保留 append-only +「變動才存」，但**去重鍵改為價格、非 `last_update`**。實測 The Odds API 的 `last_update` 同價格也會空轉（同一 series 05:18→15:22 都是 1.41，last_update 卻變了）→ 拿它當去重鍵會每 poll 灌一列。改為 code 比對「incoming 價格 vs 該 series 最新已存價格」，不同才 insert（分頁取全量避 1000 列上限）。一列＝一次真實**價格**變動；`last_update`/`captured_at` 仍存 provenance。（§3.1 / §4.1）
 - **C（totals 模型圖層 server-side）** → ingest 後 Python engine 在實際線預算 `model_total_lines`，前端只讀，不 port JS。（§3.3 / §4.4 / §5.4）
 - **D（region/credits）— 我先前理解有誤，已修正**：用 `bookmakers=` 參數時 ≤10 家（**任何 region**）算 1 region-equiv，且 `bookmakers=` 優先於 `regions=` → **不傳 `regions=`**。line-shopping 書單可混 eu+us（親友美系 app 應納 us 書），**成本仍 2 credits**。totals 去 vig 基準仍只認 Pinnacle。（§2 / §4.3）
 - **E（is_closing）** → **拿掉旗標**，closing 由 `odds_closing` view 定義（kickoff 前最新一筆）；配「變動才存」天然成立。（§3.2 / §4.2）

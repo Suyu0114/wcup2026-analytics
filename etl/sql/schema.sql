@@ -50,3 +50,49 @@ create table match_predictions (
   computed_at     timestamptz not null default now(),
   primary key (match_id, model_version)
 );
+
+-- =====================================================================
+-- P3 (Feature 5: EV/value + odds ingest + calibration). Source: docs/P3-spec.md §3.
+-- =====================================================================
+
+-- 3.1 賠率快照：append-only；「賠率真的變動才存一列」由 code 以「價格 vs 最新」判定
+--     （insert_odds_snapshots_dedup）。⚠️ last_update 會空轉（同價格也更新，實測 2026-06-09）→
+--     只當 provenance，不可當去重鍵。
+create table odds_snapshots (
+  snapshot_id   bigserial primary key,
+  match_id      text not null references matches(match_id),
+  bookmaker     text not null,                 -- 'pinnacle' | 'draftkings' | ...
+  market        text not null,                 -- 'h2h' | 'totals'
+  outcome       text not null,                 -- 'home'|'draw'|'away'|'over'|'under'（我方定向）
+  point         numeric,                        -- totals 才有（如 2.25）；h2h null
+  decimal_odds  numeric not null check (decimal_odds > 1.0),
+  last_update   timestamptz not null,           -- The Odds API last_update（provenance；同價格也會更新）
+  captured_at   timestamptz not null            -- 我方 poll 批次時戳（provenance）
+);
+
+-- backstop index（防同 (key,last_update) 重複）。真正的 store-on-change 在 code 以價格比對。
+create unique index odds_snapshots_change_uniq
+  on odds_snapshots (match_id, bookmaker, market, outcome, coalesce(point, -1), last_update);
+
+create index odds_snapshots_lookup on odds_snapshots (match_id, market, bookmaker, outcome);
+
+-- 3.2 收盤線 view：每 (match,bookmaker,market,outcome[,point]) 在 kickoff 前 captured_at 最新一筆
+create view odds_closing as
+select distinct on (match_id, bookmaker, market, outcome, coalesce(point, -1))
+       s.match_id, s.bookmaker, s.market, s.outcome, s.point,
+       s.decimal_odds, s.last_update, s.captured_at
+from odds_snapshots s
+join matches m using (match_id)
+where s.captured_at <= m.kickoff_utc
+order by s.match_id, s.bookmaker, s.market, s.outcome, coalesce(s.point, -1), s.captured_at desc;
+
+-- 3.3 模型在「Pinnacle 實際 totals 線」的機率（衍生；由 lambda_home/away 重算，非固定 p_over_2_5）
+create table model_total_lines (
+  match_id      text not null references matches(match_id),
+  point         numeric not null,              -- = Pinnacle 該場當前主線
+  model_version text not null,                 -- = 'dc-v1.0'
+  model_p_over  numeric not null,
+  model_p_under numeric not null,
+  computed_at   timestamptz not null default now(),
+  primary key (match_id, point, model_version)
+);
