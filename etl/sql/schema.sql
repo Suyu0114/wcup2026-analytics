@@ -96,3 +96,23 @@ create table model_total_lines (
   computed_at   timestamptz not null default now(),
   primary key (match_id, point, model_version)
 );
+
+-- =====================================================================
+-- P2 (Feature 4: Monte Carlo group-stage advancement simulation).
+-- Source: docs/P2-spec.md §2.
+-- ⚠️ Apply this DDL in Supabase SQL editor BEFORE running
+--    `python -m etl.simulate` (same flow as P3 objects above).
+-- =====================================================================
+
+create table group_sim (
+  team_id         text not null references teams(team_id),
+  group_label     char(1) not null,               -- 'A'..'L'（denormalize，省 join）
+  p_first         numeric not null,               -- P(小組第一)
+  p_second        numeric not null,               -- P(小組第二)
+  p_third_qual    numeric not null,               -- P(最佳第三名晉級)
+  p_advance       numeric not null,               -- = p_first + p_second + p_third_qual
+  sim_n           int not null,                    -- 模擬次數 N（provenance）
+  model_version   text not null,                   -- = 'dc-v1.0'（對齊 match_predictions）
+  computed_at     timestamptz not null default now(),
+  primary key (team_id, model_version)
+);

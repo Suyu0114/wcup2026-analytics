@@ -207,3 +207,77 @@ def upsert_predictions(rows: list[dict]) -> int:
         rows, on_conflict="match_id,model_version"
     ).execute()
     return len(rows)
+
+
+# --- P2 reads/writes (group-stage simulation) ---
+
+def fetch_group_matches_with_predictions(model_version: str = "dc-v1.0") -> list[dict]:
+    """Join matches (stage='group') with match_predictions to get lambda_home/away.
+
+    Also includes status, home_goals, away_goals for settled match locking (D3).
+    Validation: 72 group matches, all have lambda_home/away.
+    Settled matches (status='final') must have non-null goals (fail-loud).
+    """
+    # Fetch group-stage matches
+    matches = (
+        get_client()
+        .table("matches")
+        .select("match_id,stage,group_label,home_team,away_team,status,home_goals,away_goals")
+        .eq("stage", "group")
+        .execute()
+        .data
+    )
+    if len(matches) != 72:
+        raise ValueError(
+            f"Expected 72 group matches, got {len(matches)} (fail-loud)"
+        )
+
+    # Fetch predictions for these matches
+    preds = (
+        get_client()
+        .table("match_predictions")
+        .select("match_id,lambda_home,lambda_away")
+        .eq("model_version", model_version)
+        .execute()
+        .data
+    )
+    pred_map = {p["match_id"]: p for p in preds}
+
+    # Join + validate
+    result = []
+    for m in matches:
+        mid = m["match_id"]
+        pred = pred_map.get(mid)
+        if pred is None:
+            raise ValueError(
+                f"Match {mid} has no prediction for model {model_version} (fail-loud)"
+            )
+        # Settled match validation (verify-don't-assume)
+        is_settled = m["status"] == "final"
+        if is_settled:
+            if m["home_goals"] is None or m["away_goals"] is None:
+                raise ValueError(
+                    f"Settled match {mid} (status='final') missing goals (verify-don't-assume)"
+                )
+        result.append({
+            "match_id": mid,
+            "group_label": m["group_label"],
+            "home_team": m["home_team"],
+            "away_team": m["away_team"],
+            "lambda_home": float(pred["lambda_home"]),
+            "lambda_away": float(pred["lambda_away"]),
+            "is_settled": is_settled,
+            "home_goals": int(m["home_goals"]) if m["home_goals"] is not None else None,
+            "away_goals": int(m["away_goals"]) if m["away_goals"] is not None else None,
+        })
+    return result
+
+
+def upsert_group_sim(rows: list[dict]) -> int:
+    """Upsert to group_sim on_conflict=(team_id, model_version). Idempotent."""
+    if rows:
+        get_client().table("group_sim").upsert(
+            rows, on_conflict="team_id,model_version"
+        ).execute()
+    return len(rows)
+
