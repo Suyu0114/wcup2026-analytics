@@ -1,0 +1,142 @@
+{
+  "common": {
+    "siteName": "World Cup 2026 Analytics",
+    "tagline": "Dixon–Coles model probabilities, shown alongside market odds",
+    "experimental": "Experimental",
+    "experimentalTooltip": "This model is experimental. Closing market odds are usually the most accurate; the model is shown alongside the market for comparison only, not as betting advice.",
+    "loading": "Loading…",
+    "retry": "Retry",
+    "error": "Something went wrong",
+    "dataUnavailable": "Data temporarily unavailable",
+    "asOf": "As of",
+    "eloAsof": "Elo as of",
+    "simN": "Simulations",
+    "modelVersion": "Model",
+    "lastUpdate": "Odds updated",
+    "stale": "Data may be stale",
+    "utc": "UTC",
+    "na": "—",
+    "languageName": "English"
+  },
+  "nav": {
+    "home": "Home",
+    "matches": "Predictions",
+    "groups": "Advancement",
+    "value": "EV Calculator"
+  },
+  "home": {
+    "heroTitle": "World Cup 2026 Predictions & Analytics",
+    "heroSubtitle": "Probabilities from World Football Elo + Dixon–Coles, shown alongside market odds.",
+    "disclaimerBanner": "Experimental model. Shown alongside market odds for comparison only — not betting advice.",
+    "cardMatchesTitle": "Match Predictions",
+    "cardMatchesDesc": "1X2, over/under, BTTS and upset risk, alongside market odds.",
+    "cardGroupsTitle": "Advancement Odds",
+    "cardGroupsDesc": "Monte Carlo simulation of 72 group games, per-team advancement probabilities.",
+    "cardValueTitle": "EV Calculator",
+    "cardValueDesc": "Enter your odds, compare to Pinnacle de-vig, get EV and ¼ Kelly.",
+    "freshnessHeading": "Data freshness"
+  },
+  "matches": {
+    "title": "Match Predictions",
+    "subtitle": "Group-stage model probabilities, alongside market de-vig probabilities.",
+    "filterAll": "All",
+    "filterGroup": "Group",
+    "filterUpset": "Upsets only",
+    "modelLabel": "Model (experimental)",
+    "marketLabel": "Market (de-vig)",
+    "noMarket": "No market odds to compare yet",
+    "knockoutTbd": "Knockout TBD",
+    "knockoutTbdDesc": "Knockout matchups are set after the group stage; no predictions before the draw.",
+    "colKickoff": "Kickoff",
+    "colMatch": "Match",
+    "colOverUnder": "Over/Under 2.5",
+    "colBtts": "Both teams to score",
+    "predictionsEmpty": "Predictions are being prepared"
+  },
+  "groups": {
+    "title": "Advancement Odds",
+    "subtitle": "Each team's probability of finishing 1st / 2nd / qualifying as a best third.",
+    "pFirst": "Win group",
+    "pSecond": "Runner-up",
+    "pThirdQual": "Best 3rd",
+    "pAdvance": "Reach R32",
+    "groupLabel": "Group",
+    "simEmpty": "Simulation data is being prepared"
+  },
+  "value": {
+    "title": "EV / value calculator",
+    "subtitle": "Compared to the Pinnacle de-vig line; model probability never enters the value verdict.",
+    "selectMatch": "Select match",
+    "selectMarket": "Market",
+    "selectOutcome": "Outcome",
+    "oddsFormat": "Odds format",
+    "oddsInput": "Your odds",
+    "mainLine": "Pinnacle main line",
+    "yourLine": "Your line",
+    "lineMismatch": "Line mismatch",
+    "lineMismatchDesc": "Your line differs from the Pinnacle main line. No cross-line interpolation, so no EV / value is computed.",
+    "ev": "EV",
+    "value": "Value (EV > 0)",
+    "notValue": "No value (EV ≤ 0)",
+    "kellyStake": "Suggested stake (¼ Kelly)",
+    "kellyDesc": "as a percentage of bankroll",
+    "bankroll": "Your bankroll (optional)",
+    "approximate": "Approximate",
+    "approximateDesc": "Quarter lines (e.g. 2.25 / 2.75) settle as half-push, so EV / Kelly are approximate.",
+    "bestAvailable": "Best price on this line",
+    "lineShopping": "Prices by book (same line)",
+    "modelLayer": "Model layer (experimental)",
+    "modelLayerDesc": "Model probability recomputed at the actual Pinnacle line, isolated from the value verdict — comparison only.",
+    "pinnacleNovig": "Pinnacle de-vig probability",
+    "noMarketForMatch": "No market odds for this match yet; value cannot be computed.",
+    "errInvalidOdds": "Converted decimal odds must be greater than 1 — please check your input.",
+    "compute": "Compute"
+  },
+  "market": {
+    "h2h": "1X2",
+    "totals": "Over/Under"
+  },
+  "outcome": {
+    "home": "Home",
+    "draw": "Draw",
+    "away": "Away",
+    "over": "Over",
+    "under": "Under"
+  },
+  "stage": {
+    "group": "Group Stage",
+    "r32": "Round of 32",
+    "r16": "Round of 16",
+    "qf": "Quarter-finals",
+    "sf": "Semi-finals",
+    "third": "Third place",
+    "final": "Final"
+  },
+  "conf": {
+    "UEFA": "UEFA",
+    "CONMEBOL": "CONMEBOL",
+    "CONCACAF": "CONCACAF",
+    "CAF": "CAF",
+    "AFC": "AFC",
+    "OFC": "OFC"
+  },
+  "oddsfmt": {
+    "decimal": "Decimal",
+    "hongkong": "Hong Kong",
+    "american": "American",
+    "indonesian": "Indonesian",
+    "malaysian": "Malaysian"
+  },
+  "upset": {
+    "badge": "Upset risk",
+    "tooltip": "Large Elo gap, yet the underdog's not-lose probability is still meaningful."
+  },
+  "footer": {
+    "attribution": "Elo data from eloratings.net, released under CC BY-SA 4.0.",
+    "attributionLinkText": "License",
+    "marketEfficiency": "The model is experimental; closing market odds are usually the most accurate. Shown alongside the market for comparison only — not betting advice.",
+    "responsibleTitle": "Responsible gambling",
+    "responsibleBody": "This tool is for entertainment and information only. Bet within your means and never with borrowed money. If you need help, contact your local problem-gambling resources.",
+    "zhNamePending": "Some team names are pending Chinese translation and shown in English for now."
+  }
+}

@@ -1,0 +1,142 @@
+{
+  "common": {
+    "siteName": "世界盃 2026 分析",
+    "tagline": "Dixon–Coles 模型機率 × 市場賠率並列對照",
+    "experimental": "實驗性",
+    "experimentalTooltip": "本模型為實驗性質。收盤市場賠率通常最準；模型與市場並列僅供對照，非投注建議。",
+    "loading": "載入中…",
+    "retry": "重試",
+    "error": "發生錯誤",
+    "dataUnavailable": "資料暫時無法取得",
+    "asOf": "資料時間",
+    "eloAsof": "Elo 截至",
+    "simN": "模擬次數",
+    "modelVersion": "模型版本",
+    "lastUpdate": "賠率更新",
+    "stale": "資料可能不新",
+    "utc": "UTC",
+    "na": "—",
+    "languageName": "繁體中文"
+  },
+  "nav": {
+    "home": "首頁",
+    "matches": "比賽預測",
+    "groups": "晉級機率",
+    "value": "EV 計算機"
+  },
+  "home": {
+    "heroTitle": "世界盃 2026 賽事預測與分析",
+    "heroSubtitle": "以 World Football Elo + Dixon–Coles 模型產生機率，並與市場賠率並列。",
+    "disclaimerBanner": "實驗性模型，與市場賠率並列僅供對照，非投注建議。",
+    "cardMatchesTitle": "比賽預測",
+    "cardMatchesDesc": "1X2、大小分、BTTS 與爆冷風險，並列市場賠率。",
+    "cardGroupsTitle": "晉級機率",
+    "cardGroupsDesc": "Monte Carlo 模擬 72 場小組賽，估每隊出線機率。",
+    "cardValueTitle": "EV 計算機",
+    "cardValueDesc": "輸入你的賠率，比 Pinnacle 去 vig 線，算 EV 與 ¼ Kelly。",
+    "freshnessHeading": "資料新鮮度"
+  },
+  "matches": {
+    "title": "比賽預測",
+    "subtitle": "小組賽模型機率，並列市場去 vig 機率。",
+    "filterAll": "全部",
+    "filterGroup": "組別",
+    "filterUpset": "只看爆冷",
+    "modelLabel": "模型（實驗性）",
+    "marketLabel": "市場（去 vig）",
+    "noMarket": "尚無市場賠率可比較",
+    "knockoutTbd": "淘汰賽待抽籤",
+    "knockoutTbdDesc": "淘汰賽對戰於小組賽結束後決定，抽籤前不提供預測。",
+    "colKickoff": "開賽",
+    "colMatch": "對戰",
+    "colOverUnder": "大小分 2.5",
+    "colBtts": "雙方進球",
+    "predictionsEmpty": "預測資料準備中"
+  },
+  "groups": {
+    "title": "晉級機率",
+    "subtitle": "每隊小組第一 / 第二 / 最佳第三名晉級機率。",
+    "pFirst": "小組第一",
+    "pSecond": "小組第二",
+    "pThirdQual": "最佳第三",
+    "pAdvance": "晉級 R32",
+    "groupLabel": "組",
+    "simEmpty": "模擬數據準備中"
+  },
+  "value": {
+    "title": "EV / value 計算機",
+    "subtitle": "比 Pinnacle 去 vig 線；模型機率不參與 value 判定。",
+    "selectMatch": "選擇比賽",
+    "selectMarket": "市場",
+    "selectOutcome": "結果",
+    "oddsFormat": "賠率格式",
+    "oddsInput": "你的賠率",
+    "mainLine": "Pinnacle 主線",
+    "yourLine": "你的盤口線",
+    "lineMismatch": "盤口線不一致",
+    "lineMismatchDesc": "你的線與 Pinnacle 主線不同，不跨線插值，不計算 EV / value。",
+    "ev": "EV",
+    "value": "有 value（EV > 0）",
+    "notValue": "無 value（EV ≤ 0）",
+    "kellyStake": "建議注額（¼ Kelly）",
+    "kellyDesc": "佔 bankroll 百分比",
+    "bankroll": "你的 bankroll（選填）",
+    "approximate": "近似值",
+    "approximateDesc": "Quarter line（如 2.25 / 2.75）為半 push 結算，EV / Kelly 為近似值。",
+    "bestAvailable": "同線最佳賠率",
+    "lineShopping": "各家賠率（同一條線）",
+    "modelLayer": "模型圖層（實驗性）",
+    "modelLayerDesc": "模型在 Pinnacle 實際線重算的機率，與上方 value 判定隔離，僅供對照。",
+    "pinnacleNovig": "Pinnacle 去 vig 機率",
+    "noMarketForMatch": "此比賽尚無市場賠率，無法計算 value。",
+    "errInvalidOdds": "賠率換算後須大於 1，請檢查輸入。",
+    "compute": "計算"
+  },
+  "market": {
+    "h2h": "1X2",
+    "totals": "大小分"
+  },
+  "outcome": {
+    "home": "主勝",
+    "draw": "和局",
+    "away": "客勝",
+    "over": "大分",
+    "under": "小分"
+  },
+  "stage": {
+    "group": "小組賽",
+    "r32": "32 強",
+    "r16": "16 強",
+    "qf": "八強",
+    "sf": "四強",
+    "third": "季軍賽",
+    "final": "決賽"
+  },
+  "conf": {
+    "UEFA": "歐洲",
+    "CONMEBOL": "南美",
+    "CONCACAF": "中北美",
+    "CAF": "非洲",
+    "AFC": "亞洲",
+    "OFC": "大洋洲"
+  },
+  "oddsfmt": {
+    "decimal": "歐洲盤（Decimal）",
+    "hongkong": "香港盤",
+    "american": "美式盤",
+    "indonesian": "印尼盤",
+    "malaysian": "馬來盤"
+  },
+  "upset": {
+    "badge": "爆冷風險",
+    "tooltip": "兩隊 Elo 差距大，但弱隊不敗機率仍不低。"
+  },
+  "footer": {
+    "attribution": "Elo 資料源自 eloratings.net，依 CC BY-SA 4.0 釋出。",
+    "attributionLinkText": "授權條款",
+    "marketEfficiency": "模型為實驗性；收盤市場賠率通常最準。模型與市場並列僅供對照，非投注建議。",
+    "responsibleTitle": "負責任博弈",
+    "responsibleBody": "本工具僅供娛樂與資訊用途。請量力而為、切勿借貸投注。如需協助，請洽當地戒賭資源。",
+    "zhNamePending": "部分隊伍中文名稱準備中，暫以英文顯示。"
+  }
+}

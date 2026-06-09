@@ -1,0 +1,229 @@
+{
+  "to_decimal": [
+    {
+      "value": 2.5,
+      "fmt": "decimal",
+      "expected": 2.5
+    },
+    {
+      "value": 1.5,
+      "fmt": "hongkong",
+      "expected": 2.5
+    },
+    {
+      "value": 0.5,
+      "fmt": "hongkong",
+      "expected": 1.5
+    },
+    {
+      "value": 150,
+      "fmt": "american",
+      "expected": 2.5
+    },
+    {
+      "value": -200,
+      "fmt": "american",
+      "expected": 1.5
+    },
+    {
+      "value": 1.5,
+      "fmt": "indonesian",
+      "expected": 2.5
+    },
+    {
+      "value": -2.0,
+      "fmt": "indonesian",
+      "expected": 1.5
+    },
+    {
+      "value": 0.5,
+      "fmt": "malaysian",
+      "expected": 1.5
+    },
+    {
+      "value": -0.667,
+      "fmt": "malaysian",
+      "expected": 2.4992503748125934
+    }
+  ],
+  "ev": [
+    {
+      "p": 0.55,
+      "d": 2.0,
+      "expected": 0.10000000000000009
+    },
+    {
+      "p": 0.5,
+      "d": 2.1,
+      "expected": 0.050000000000000044
+    },
+    {
+      "p": 0.33,
+      "d": 3.0,
+      "expected": -0.010000000000000009
+    },
+    {
+      "p": 0.6,
+      "d": 1.5,
+      "expected": -0.10000000000000009
+    }
+  ],
+  "kelly": [
+    {
+      "p": 0.55,
+      "d": 2.0,
+      "fraction": 0.25,
+      "expected": 0.025000000000000022
+    },
+    {
+      "p": 0.5,
+      "d": 2.1,
+      "fraction": 0.25,
+      "expected": 0.011363636363636373
+    },
+    {
+      "p": 0.4,
+      "d": 2.0,
+      "fraction": 0.25,
+      "expected": 0.0
+    },
+    {
+      "p": 0.6,
+      "d": 1.5,
+      "fraction": 0.5,
+      "expected": 0.0
+    }
+  ],
+  "is_quarter_line": [
+    {
+      "point": 2.0,
+      "expected": false
+    },
+    {
+      "point": 2.25,
+      "expected": true
+    },
+    {
+      "point": 2.5,
+      "expected": false
+    },
+    {
+      "point": 2.75,
+      "expected": true
+    },
+    {
+      "point": 3.0,
+      "expected": false
+    },
+    {
+      "point": 1.75,
+      "expected": true
+    }
+  ],
+  "evaluate": [
+    {
+      "p": 0.55,
+      "userValue": 2.0,
+      "userFormat": "decimal",
+      "opts": {},
+      "expected": {
+        "decimal_odds": 2.0,
+        "implied_prob": 0.5,
+        "p_pinnacle_novig": 0.55,
+        "line_mismatch": false,
+        "ev": 0.10000000000000009,
+        "value": true,
+        "kelly_fraction": 0.025000000000000022,
+        "approximate": false
+      }
+    },
+    {
+      "p": 0.55,
+      "userValue": 1.7,
+      "userFormat": "decimal",
+      "opts": {},
+      "expected": {
+        "decimal_odds": 1.7,
+        "implied_prob": 0.5882352941176471,
+        "p_pinnacle_novig": 0.55,
+        "line_mismatch": false,
+        "ev": -0.06499999999999995,
+        "value": false,
+        "kelly_fraction": 0.0,
+        "approximate": false
+      }
+    },
+    {
+      "p": 0.5,
+      "userValue": 1.8,
+      "userFormat": "hongkong",
+      "opts": {},
+      "expected": {
+        "decimal_odds": 2.8,
+        "implied_prob": 0.35714285714285715,
+        "p_pinnacle_novig": 0.5,
+        "line_mismatch": false,
+        "ev": 0.3999999999999999,
+        "value": true,
+        "kelly_fraction": 0.055555555555555546,
+        "approximate": false
+      }
+    },
+    {
+      "p": 0.49,
+      "userValue": 2.0,
+      "userFormat": "decimal",
+      "opts": {
+        "point": 2.5,
+        "pinnacleMainPoint": 2.5
+      },
+      "expected": {
+        "decimal_odds": 2.0,
+        "implied_prob": 0.5,
+        "p_pinnacle_novig": 0.49,
+        "line_mismatch": false,
+        "ev": -0.020000000000000018,
+        "value": false,
+        "kelly_fraction": 0.0,
+        "approximate": false
+      }
+    },
+    {
+      "p": 0.49,
+      "userValue": 2.0,
+      "userFormat": "decimal",
+      "opts": {
+        "point": 2.25,
+        "pinnacleMainPoint": 2.25
+      },
+      "expected": {
+        "decimal_odds": 2.0,
+        "implied_prob": 0.5,
+        "p_pinnacle_novig": 0.49,
+        "line_mismatch": false,
+        "ev": -0.020000000000000018,
+        "value": false,
+        "kelly_fraction": 0.0,
+        "approximate": true
+      }
+    },
+    {
+      "p": 0.49,
+      "userValue": 2.0,
+      "userFormat": "decimal",
+      "opts": {
+        "point": 2.5,
+        "pinnacleMainPoint": 2.25
+      },
+      "expected": {
+        "decimal_odds": 2.0,
+        "implied_prob": 0.5,
+        "p_pinnacle_novig": 0.49,
+        "line_mismatch": true,
+        "ev": null,
+        "value": null,
+        "kelly_fraction": null
+      }
+    }
+  ]
+}

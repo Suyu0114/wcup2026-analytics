@@ -314,8 +314,8 @@ if abs(elo_home − elo_away) >= UPSET_ELO_GAP (預設 150)
 | ID | 測試 | 通過條件 | 層 |
 |---|---|---|---|
 | **TU1** | i18n 覆蓋 | `zh-TW`/`en` 字典 key 一一對應、無缺；無 hardcode 顯示字串；切換 locale 全站生效；隊名走 `name_zh`/`name_en`（非機翻）；`name_zh=null` → fallback `name_en` 不 crash | A/C |
-| **TU2** | 模型⇄市場並列 | 凡顯示模型 1X2/大小分處，有盤時並列市場去 vig；模型帶「實驗性」標籤；無「唯一答案」排版 | C |
-| **TU3** | 無盤 graceful | 無市場的場次只秀模型 + 強化實驗標籤 + 不出 value/EV，且不報錯 | C |
+| **TU2** | 模型⇄市場並列 | 凡顯示模型 1X2/大小分處，有盤時並列市場去 vig；模型帶「實驗性」標籤；無「唯一答案」排版 | C（**部分自動化**） |
+| **TU3** | 無盤 graceful | 無市場的場次只秀模型 + 強化實驗標籤 + 不出 value/EV，且不報錯 | C（**自動化**） |
 | **TU4** | 淘汰賽 TBD | 淘汰賽未抽籤 → 顯示「待抽籤」佔位、不 crash、不臆造對戰 | C |
 | **TU5** | value.ts ⇄ value.py 一致 | `toDecimal/ev/kellyFraction/isQuarterLine/totalsLineMatches/evaluate` 對 P3 TV1/TV3/TV6/TV8 黃金向量輸出與 `engine/value.py` 完全一致。**黃金向量由 `engine/value.py` 生成存 `web/tests/fixtures/golden_vectors.json`**，vitest 對該 JSON 比（Issue 10） | A |
 | **TU6** | value 隔離 | value 路徑只吃 server `pinnacle_novig`；`lib/value.ts` 不 import 任何模型機率（靜態檢查 + 程式碼掃描）；`model_layer` 不進 `evaluate` | A/B |
@@ -329,6 +329,17 @@ if abs(elo_home − elo_away) >= UPSET_ELO_GAP (預設 150)
 | **TU14** | 群組機率呈現 | `/groups` 每組 4 隊；`p_first` 組內加總 ≈ 1（容差 ±1/sim_n）；按 `p_advance` 排序橫條正確 | A/C |
 
 > 市場相關呈現測試需已 ingest 賠率（無則走 TU3 graceful 路徑）。純算術（TU5/TU7/TU8/TU13）離線可測。
+
+### 7.1 component-test 自動化範圍（TU2 / TU3）
+
+`@testing-library/react` + jsdom（vitest，離線）已自動化以下**行為**斷言（斷言走 **dictionary 值 + 文字/角色**，**不碰 Tailwind class**，避免改樣式就全紅）：
+
+| 測試檔 | 涵蓋 |
+|---|---|
+| `tests/ModelVsMarket.test.tsx` | **TU2（部分）**：有盤 → 模型與市場機率**並列**渲染 + 「實驗性」標籤存在；**TU3（matches 側）**：無盤 → 只渲染模型 + 明示 no-market note + 不渲染市場 bar + 不 throw |
+| `tests/ValueCalculator.test.tsx` | **TU3（value 側）**：`market_available=false` → 出 no-market 訊息、**不出 value/EV 判定**、responsible footer 仍在（**TU12**） |
+
+> ⚠️ **TU2 的「無唯一答案排版」是視覺/設計判斷，刻意留人工**——Testing Library 無法測排版意圖，硬寫 class 斷言會脆裂。人工 checklist：模型無置中大字、無「預測：X 勝」斷言式標題、模型側永遠有市場並列（或無盤時強化標籤）。
 
 ---
 
