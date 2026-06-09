@@ -63,3 +63,14 @@ def test_to9_bookmaker_count_keeps_two_credit_cost():
     assert len(BOOKMAKERS) <= 10          # >10 books would break the 2-credit/call cost model
     assert "pinnacle" in BOOKMAKERS       # sole sharp de-vig baseline
     assert len(set(BOOKMAKERS)) == len(BOOKMAKERS)
+
+
+def test_to9_cadence_within_quota_budget():
+    # spec §4.3 tournament estimate (39 days); 2 credits/call; free tier 500/month.
+    CREDITS_PER_CALL = 2
+    daily_cron = 39                          # 1 call/day
+    pre_kickoff_closing = round(104 * 1.5)   # ~156 manual workflow_dispatch
+    buffer = 20
+    total_calls = daily_cron + pre_kickoff_closing + buffer   # ~215
+    assert total_calls <= 250, total_calls
+    assert total_calls * CREDITS_PER_CALL <= 500, total_calls * CREDITS_PER_CALL

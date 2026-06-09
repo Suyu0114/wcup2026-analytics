@@ -1,0 +1,33 @@
+name: Odds Ingest
+
+on:
+  schedule:
+    - cron: '0 6 * * *'   # UTC 06:00 每日例行（非精準 closing，容忍 jitter）
+  workflow_dispatch:        # 手動觸發（比賽前 closing 快照用）
+    inputs:
+      dry_run:
+        description: 'Dry run (skip Supabase write)'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - name: Run odds ingest
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+        run: |
+          if [ "${{ inputs.dry_run }}" == "true" ]; then
+            python -m etl.ingest_odds --dry-run
+          else
+            python -m etl.ingest_odds
+          fi
