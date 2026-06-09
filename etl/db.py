@@ -42,3 +42,28 @@ def upsert_aliases(alias_map: dict[str, str], source: str = "fixtures") -> int:
 def upsert_matches(rows: list[dict]) -> int:
     get_client().table("matches").upsert(rows, on_conflict="match_id").execute()
     return len(rows)
+
+
+# --- reads (P1 prediction job) ---
+
+def fetch_team_elos() -> dict[str, float]:
+    rows = get_client().table("teams").select("team_id,elo").execute().data
+    return {r["team_id"]: float(r["elo"]) for r in rows}
+
+
+def fetch_matches_to_predict() -> list[dict]:
+    """Matches with both teams set (all stored rows qualify; knockout TBD aren't stored yet)."""
+    return (
+        get_client()
+        .table("matches")
+        .select("match_id,home_team,away_team,is_host_home")
+        .execute()
+        .data
+    )
+
+
+def upsert_predictions(rows: list[dict]) -> int:
+    get_client().table("match_predictions").upsert(
+        rows, on_conflict="match_id,model_version"
+    ).execute()
+    return len(rows)

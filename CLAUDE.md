@@ -50,10 +50,10 @@ engine/                ← Dixon–Coles 引擎（spec §5）
 market-calibration gate（T10）延到 P3：模型過不了校正，value 判定就是放煙火。
 
 ## 指令
-- 安裝：`pip install -r requirements.txt`（建議用 `.venv`）
-- 測試（全離線、不需網路/DB）：`python -m pytest -q`
+canonical env = conda `WC2026`（見 [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md)）。安裝 `pip install -r requirements.txt`。
+- 測試：`python -m pytest -q`（離線 25 passed + 1 skipped；TF5 有 Supabase creds 時跑 → 26 passed）
 - Elo ingest：`python -m etl.ingest_elo [--dry-run]`（`--dry-run` 連 Supabase 都不需要）
 - Alias 種子：`python -m etl.ingest_aliases [--dry-run]`（需 `FOOTBALL_DATA_TOKEN`；**先於** fixtures）
 - Fixtures ingest：`python -m etl.ingest_fixtures [--dry-run]`
+- 預測（P1）：`python -m etl.predict [--dry-run]`（讀 `teams`+`matches` → 寫 `match_predictions`，model `dc-v1.0`）
 - 不帶 `--dry-run` = 寫入 Supabase，需 `SUPABASE_URL` / `SUPABASE_SERVICE_KEY` + 已套用 [etl/sql/schema.sql](etl/sql/schema.sql)。
-- P1 引擎 entrypoint 待實作。
