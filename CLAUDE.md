@@ -19,9 +19,15 @@ World Cup 2026 Analytics — 賽事預測/分析平台的工程指南。
 - **P3** — The Odds API → `odds_snapshots`（變動才存）；Pinnacle 去 vig EV/Kelly（[engine/value.py](engine/value.py)，純函數）；`model_total_lines`（實際線重算）；校正學習線（T10，**非 gate**）。spec：[docs/P3-spec.md](docs/P3-spec.md)。
 - **P5** — `web/` Next.js（App Router）+ Tailwind 前端，雙語 zh-TW/en（`next-intl`）。呈現 F1/F3/F4/F5；**不新增模型/ETL、前端不寫 DB**。資料走 server-side service-key API（**`SUPABASE_SERVICE_KEY` 嚴禁進 client**）；EV 使用者賠率算術在 client（[web/lib/value.ts](web/lib/value.ts)，port `engine/value.py`，model-free）；市場去 vig 在 server。spec：[docs/P5-spec.md](docs/P5-spec.md)。
 
+### 🚧 P6 — 規劃中（spec 已定案 2026-06-09，**尚未實作**）：[docs/P6-spec.md](docs/P6-spec.md)
+**⚠️ P6 是 roadmap，不是現況**：下列功能 code 尚未動，本檔的陷阱（#5/#8/#12/#13）仍描述**現行 code**，以實作前狀態為準。**動 P6 相關 code 前，先讀 P6-spec §6（修訂清單）與 §11（裁決紀錄）**——P6 會修訂 P0-P1/P3/P5 多條已定案契約。
+- **Workstream A（引擎升級）**：A1 地主 HFA 啟用（16 球場→國家 lookup，改 trap #5）；A2 歷史賽果擬合 → **dc-v1.1**（`fit/fit_dc.py` 離線擬合，兌現 trap #8 承諾；⚠️ 禁止年度快照向後內插＝look-ahead leakage，只用賽前快照）；A3 市場分歧診斷（`etl.diagnose_market`，read-only）。
+- **Workstream B（value v2）**：雙模式（市場預設 ⇄ 模型〔實驗〕，**永不混算**，改 trap #12 的「程式層隔離」為「來源標示制」）；市場模式紅黃綠三級判定；totals 模型模式線格 1.5–4.5（push-aware）；模型模式 Kelly **校正達標才解鎖**（n≥30 且 Brier≤市場×1.1）；在地化（TWD/CAD、分地區 RG footer）。
+- **schema 增量**：`model_total_lines` 加 `model_p_push` 欄；新表 `calibration_runs`（calibrate 落表）。
+
 ## 結構
 ```
-docs/P0-P1-spec.md     ← P0/P1 執行契約；docs/P2-spec.md ← P2；docs/P3-spec.md ← P3
+docs/P0-P1-spec.md     ← P0/P1 執行契約；P2-spec.md ← P2；P3-spec.md ← P3；P5-spec.md ← P5；P6-spec.md ← P6（規劃中，修訂 P3/P5 契約）
 etl/                   ← ingestion + jobs（Elo / fixtures / alias / odds / predict / simulate / calibrate）
   sql/schema.sql       ← Postgres DDL（P0/P1 §3 + P2 §2 + P3 §3）
   simulate.py          ← P2 Monte Carlo 模擬 job（讀 DB → 引擎 → 寫 group_sim）
@@ -41,14 +47,14 @@ web/                   ← P5 Next.js 前端（App Router + Tailwind + next-intl
 2. **Elo CSV 含 future-dated 年底欄位**（如 2026-12-31，數值複製自當期 live）。只取「不在未來」的最新快照；直接 `max(snapshot_date)` 會讓 `elo_asof` provenance 變假（數值對、日期錯）。
 3. **跨來源隊名一律經 `team_aliases` 解析成 `team_id`**；對不上 → raise，**不准默默新增 team**。
 4. **λ 用 log-linear**（spec §5.1），**不要**用加法式 `(total − supremacy)/2`（強弱差大時 λ 變負，Poisson 爆掉）。
-5. **主場優勢只給地主三國**（US/CA/MX）且 `is_host_home=true` 時施加；v1 一律 `false`（中立），HFA 先驗 +100 Elo。
+5. **主場優勢只給地主三國**（US/CA/MX）且 `is_host_home=true` 時施加；v1 一律 `false`（中立），HFA 先驗 +100 Elo。〔P6 A1 將啟用 venue lookup〕
 6. **We ≠ p_home**：spec 的 64/76/91% 是 win expectancy（含平局）。校正 GAMMA 要對 `We_model = p_home + 0.5·p_draw`，**別拿 p_home 直接對 64%**。
 7. **市場效率**：引擎輸出在 UI **必須與市場賠率並列**，不可單獨呈現為「正確答案」。
-8. **校正參數（`BASE/GAMMA/HFA_ELO/RHO`）是先驗非真理**，待 P3 backtest 用歷史賽果 + 收盤賠率擬合。
+8. **校正參數（`BASE/GAMMA/HFA_ELO/RHO`）是先驗非真理**，待擬合。〔P6 A2 兌現：`fit/fit_dc.py` 用歷史賽果擬合 dc-v1.1；驗證沒過不 bump，留 dc-v1.0〕
 9. **CC BY-SA 4.0**：Elo 資料要標 attribution（網站放 footer）。
 10. **淘汰賽賽前 TBD**：賽前 32 場淘汰賽在 football-data 是 **null 隊伍**。fixtures ingest **只收 72 場有隊的小組賽**、跳過未抽籤者；idempotent 重跑會補上。TF1 的「104 列」是賽事期間不變量，賽前實為 72 收 + 32 skip。⚠️ 與 spec §4.2 / TF1 字面不符（已知、刻意；待 spec 對齊）。
 11. **手動 alias 在 [etl/identity.py](etl/identity.py) `MANUAL_ALIASES`**：實測只 3 隊需手補（Bosnia-Herzegovina→BA、Cape Verde Islands→CV、Congo DR→CD）。spec §2.2 猜的 Türkiye / Côte d'Ivoire / Korea 其實自動對上；換來源要重驗。
-12. **P3 賠率（[docs/P3-spec.md](docs/P3-spec.md)）**：The Odds API 又一套隊名 → `MANUAL_ALIASES_ODDS`（實測只 `Czech Republic`→CZ）。EV 比 **Pinnacle 去 vig** 不比模型；模型機率與 value **程式層隔離**（engine/value.py 不 import 模型）。`odds_snapshots` **變動才存**（以**價格 vs 最新**比對；⚠️ last_update 會空轉、不可當去重鍵，實測 2026-06-09）。totals 模型圖層在 **Pinnacle 實際線**重算（`model_total_lines`），非 `p_over_2_5`。event→match 用無序隊伍對（淘汰賽再遇要時間/輪次硬判）。
+12. **P3 賠率（[docs/P3-spec.md](docs/P3-spec.md)）**：The Odds API 又一套隊名 → `MANUAL_ALIASES_ODDS`（實測只 `Czech Republic`→CZ）。EV 比 **Pinnacle 去 vig** 不比模型；模型機率與 value **程式層隔離**（engine/value.py 不 import 模型）。〔P6 B 將改為雙模式「來源標示制」：市場預設、模型〔實驗〕opt-in、永不混算——見 P6-spec §6〕`odds_snapshots` **變動才存**（以**價格 vs 最新**比對；⚠️ last_update 會空轉、不可當去重鍵，實測 2026-06-09）。totals 模型圖層在 **Pinnacle 實際線**重算（`model_total_lines`），非 `p_over_2_5`。event→match 用無序隊伍對（淘汰賽再遇要時間/輪次硬判）。
 13. **P5 前端（[docs/P5-spec.md](docs/P5-spec.md)）**：(a) `SUPABASE_SERVICE_KEY` **只在 server**（`web/lib/supabaseServer.ts` 帶 `import 'server-only'`；**勿加 `NEXT_PUBLIC_`**，否則洩 key）。(b) 模型輸出 UI **永遠與市場去 vig 並列 + 標「實驗性」**，絕不單獨當「答案」（[web/components/ModelVsMarket.tsx](web/components/ModelVsMarket.tsx)）。(c) value 算術 client 端隔離：`web/lib/value.ts` **不含 `novig`、不 import 模型**（去 vig 在 server `web/lib/devig.ts`）；改 `engine/value.py` 後**要重生 golden_vectors**（`python web/tests/fixtures/gen_golden.py`，需 `PYTHONPATH`=repo root）保 parity。(d) DB 缺資料是 **graceful 空狀態非錯誤**（§6.6）；別讓前端對空資料 throw。(e) schema **不需新 RLS**（service-key bypass）。
 
 ## 環境變數
