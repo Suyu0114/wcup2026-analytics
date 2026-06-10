@@ -1,7 +1,7 @@
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { getMatches } from '@/lib/data';
 import { displayTeamName } from '@/lib/teamName';
-import type { Locale } from '@/lib/routing';
+import { Link, type Locale } from '@/lib/routing';
 import ValueCalculator, { type MatchOption } from '@/components/ValueCalculator';
 import EmptyState from '@/components/EmptyState';
 
@@ -25,6 +25,12 @@ export default async function ValuePage({ params }: { params: Promise<{ locale: 
       <header>
         <h1 className="text-2xl font-bold text-slate-900">{t('value.title')}</h1>
         <p className="mt-1 text-slate-600">{t('value.subtitle')}</p>
+        <Link
+          href="/guide"
+          className="mt-2 inline-block rounded bg-sky-50 px-3 py-1.5 text-sm text-sky-800 hover:bg-sky-100"
+        >
+          {t('value.guidePrompt')} →
+        </Link>
       </header>
 
       {options.length === 0 ? (
