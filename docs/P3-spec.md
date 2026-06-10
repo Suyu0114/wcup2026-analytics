@@ -1,5 +1,6 @@
 # World Cup 2026 Analytics — P3 Spec
 
+> ⚠️ **部分條款已被 [P6-spec.md](P6-spec.md) §6 修訂**（value 改雙模式來源標示制、Kelly 解鎖閘、近似旗標範圍、`model_total_lines` 擴為線格 + push、T10 升為 Kelly 開關）。實作 value/totals/校正相關 code 前以 P6 為準。
 > 給 Claude Code 的實作規格 / 「執行契約」。§9 的 7 個 flag + review 抓到的 5 個洞**已裁決並併入各節**；§9 改為**裁決紀錄**（供協作者看決策軌跡）。
 > 風格遵循專案原則：**verify-don't-assume**、**data integrity over approximation**、**spec 與 code 不符要立即標記**、**fail-loud**、**idempotent**、**provenance**。對齊 [P0-P1-spec.md](P0-P1-spec.md) §3/§4/§5 與 [CLAUDE.md](../CLAUDE.md)。
 

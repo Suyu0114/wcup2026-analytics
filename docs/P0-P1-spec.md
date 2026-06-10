@@ -1,5 +1,6 @@
 # World Cup 2026 Analytics — P0 / P1 Spec
 
+> ⚠️ **部分條款已被 [P6-spec.md](P6-spec.md) §6 修訂**（§2.2/§4.2 `is_host_home` 由 P6 A1 啟用；T9 We 錨點對 dc-v1.1 降為診斷）。動引擎/HFA/校正前以 P6 為準。
 > 給 Claude Code 的實作規格。設計討論在 Claude.ai 完成，這份文件是「執行契約」。
 > 風格遵循專案原則：**verify-don't-assume**、**data integrity over approximation**、**spec 與 code 不符要立即標記**。
 

@@ -1,5 +1,6 @@
 # World Cup 2026 Analytics — P5 Spec
 
+> ⚠️ **部分條款已被 [P6-spec.md](P6-spec.md) §6 修訂**（§5.2 頁面流程改雙模式、§6.1 適用兩模式、TU6/TU8 隔離與近似旗標重寫）。實作 `/value` 相關 code 前以 P6 為準。
 > 給 Claude Code 的實作規格 / 「執行契約」。**P5 = i18n（zh-TW / en）+ Web UI**——把已完成的 P1/P2/P3 模型與市場資料呈現給使用者。
 > 風格遵循專案原則：**verify-don't-assume**、**data integrity over approximation**、**fail-loud**、**idempotent**、**provenance**。對齊 [P0-P1-spec.md](P0-P1-spec.md) §1/§3/§7、[P2-spec.md](P2-spec.md)、[P3-spec.md](P3-spec.md) §5、[CLAUDE.md](../CLAUDE.md)。
 > **本檔尚未實作；待 user review 通過後才動 code。**
