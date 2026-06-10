@@ -3,8 +3,9 @@ import { Link } from '@/lib/routing';
 import GuideSection from '@/components/GuideSection';
 import OddsConverter from '@/components/OddsConverter';
 
-// Static educational page (no DB). Ch1–3 (model / odds formats / vig); Ch4–5 (EV, bankroll,
-// Kelly, calculator walkthrough) land with the P6 value-calculator redesign — see moreBody.
+// Static educational page (no DB). Ch1–3: model / odds formats / vig. Ch4–5: EV + bankroll/Kelly
+// and the calculator walkthrough — written against the shipped P6 dual-mode /value UI
+// (three-tier verdict, Kelly calibration gate, totals grid; guide-spec.md batch 2).
 export default async function GuidePage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   setRequestLocale(locale);
@@ -46,6 +47,44 @@ export default async function GuidePage({ params }: { params: Promise<{ locale: 
             <p className="font-medium text-slate-700">{t('guide.vig.exampleTitle')}</p>
             <ul className="mt-1 list-disc space-y-1 pl-5 text-slate-600">
               {points('guide.vig.example').map((p, i) => (
+                <li key={i}>{p}</li>
+              ))}
+            </ul>
+          </div>
+        </GuideSection>
+
+        <GuideSection title={t('guide.ev.title')} summary={t('guide.ev.summary')}>
+          <ul className="list-disc space-y-1.5 pl-5">
+            {points('guide.ev.points').map((p, i) => (
+              <li key={i}>{p}</li>
+            ))}
+          </ul>
+          <div className="rounded-lg border border-sky-100 bg-sky-50 p-3">
+            <p className="font-medium text-slate-700">{t('guide.ev.exampleTitle')}</p>
+            <ul className="mt-1 list-disc space-y-1 pl-5 text-slate-600">
+              {points('guide.ev.example').map((p, i) => (
+                <li key={i}>{p}</li>
+              ))}
+            </ul>
+          </div>
+          <p className="font-medium text-slate-800">{t('guide.ev.bankrollTitle')}</p>
+          <ul className="list-disc space-y-1.5 pl-5">
+            {points('guide.ev.bankrollPoints').map((p, i) => (
+              <li key={i}>{p}</li>
+            ))}
+          </ul>
+        </GuideSection>
+
+        <GuideSection title={t('guide.calculator.title')} summary={t('guide.calculator.summary')}>
+          <ol className="list-decimal space-y-1.5 pl-5">
+            {points('guide.calculator.steps').map((p, i) => (
+              <li key={i}>{p}</li>
+            ))}
+          </ol>
+          <div className="rounded-lg border border-amber-100 bg-amber-50 p-3">
+            <p className="font-medium text-amber-900">{t('guide.calculator.notesTitle')}</p>
+            <ul className="mt-1 list-disc space-y-1 pl-5 text-amber-800">
+              {points('guide.calculator.notes').map((p, i) => (
                 <li key={i}>{p}</li>
               ))}
             </ul>

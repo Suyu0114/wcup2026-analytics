@@ -165,9 +165,54 @@
         "The extra 25.2% is this book's vig (lottery margins run high). The fair probability only appears after de-vigging."
       ]
     },
-    "moreTitle": "More: EV, bankroll, using the calculator",
-    "moreBody": "Expected value (EV), bankroll management, Kelly staking, and a step-by-step walkthrough of the EV calculator are being written alongside the calculator's redesign and will land soon.",
-    "moreCta": "Head to the EV calculator"
+    "ev": {
+      "title": "What is EV (expected value)? How to read the traffic light?",
+      "summary": "Expected value + three-tier verdict + bankroll",
+      "points": [
+        "EV (expected value) in plain words: \"if you placed this same bet many times, how much would you win or lose per bet on average?\" Any single match is uncertain; EV is about the long-run average, not this one result.",
+        "Formula: EV = (fair probability × your odds) − 1. The fair probability comes from chapter 3 — market mode uses Pinnacle with the vig removed; model mode uses the model probability (experimental).",
+        "The calculator grades the result in three tiers: 🟢 good price (EV > 0, better than fair), 🟡 close to fair (EV between −2.5% and 0 — note this is still negative EV, just a low vig), 🔴 expensive (EV below −2.5%).",
+        "\"Per 100 staked you win/lose X on average\" is simply EV × 100 — the abstract percentage turned into money you can feel.",
+        "\"Breakeven win rate\" = 1 ÷ odds. Read it next to the fair probability: if the breakeven bar is higher than the fair probability, this price loses money in the long run."
+      ],
+      "exampleTitle": "Worked example (assume fair probability 40%, i.e. a fair price of 2.50)",
+      "example": [
+        "Your odds 2.70 → EV = 0.40 × 2.70 − 1 = +8%: 🟢 good price, on average +8 per 100 staked.",
+        "Your odds 2.45 → EV = −2%: 🟡 close to fair — a very low vig, but still −2 per 100 staked in the long run.",
+        "Your odds 2.30 → EV = −8%: 🔴 expensive, on average −8 per 100 staked.",
+        "Breakeven win rate: 1 ÷ 2.30 ≈ 43.5%, but the fair probability is only 40% — those 3.5 points are the vig you are paying."
+      ],
+      "bankrollTitle": "Bankroll and Kelly staking",
+      "bankrollPoints": [
+        "Bankroll = the total budget you are willing to bet and could lose without it affecting your life — not your savings. All stake suggestions are a percentage of it.",
+        "The Kelly formula sizes the bet by the size of your edge: bigger edge → bigger stake; no edge → no bet. This site uses ¼ Kelly (a quarter of the full Kelly suggestion) — more conservative, smaller swings.",
+        "Example: bankroll 1,000 and the calculator suggests 3.2% → stake 32 on this bet (negative EV always suggests 0).",
+        "Model-mode stake suggestions sit behind a calibration unlock gate: the model must accumulate at least 30 settled matches this tournament with prediction accuracy (Brier) no more than 10% behind the market before stakes unlock; until then only the calibration progress (e.g. 0/30) is shown. Market mode is unaffected. This is deliberate — a model without real-tournament validation should not size your bets."
+      ]
+    },
+    "calculator": {
+      "title": "Step-by-step: using the EV calculator",
+      "summary": "Walk through the 8 steps",
+      "steps": [
+        "(Top of the page) The \"model vs market: biggest divergences\" list is a research entry point: clicking a row prefills the calculator. It is NOT a value list — a big divergence usually means the model is wrong.",
+        "Pick the \"probability source\": the default is \"fair market price\" (recommended for most users); \"model probability (experimental)\" is for advanced comparison — the result card switches to experimental colours and always shows the market reference alongside.",
+        "Pick your match in the \"select match\" dropdown.",
+        "Pick the \"market\" (1X2 = home/draw/away; over/under = total goals) and the \"outcome\".",
+        "For over/under an extra \"your line\" field appears, prefilled with the Pinnacle main line: in market mode, changing it shows \"line mismatch\" and no EV is computed; in model mode any line within 1.5–4.5 (0.25 steps) works.",
+        "Pick your \"odds format\" (Taiwan Sports Lottery = Decimal; Canadian friends can pick American/Moneyline — see chapter 2) → enter the odds your app shows → (optional) enter your bankroll.",
+        "Read the result card: EV% with the traffic-light verdict (chapter 4), \"per 100 staked…\", \"breakeven win rate vs fair probability\", the suggested stake (¼ Kelly; model mode must pass the calibration gate first), and same-line price comparison (which book has the best price).",
+        "If an \"approximate\" tag appears: this line can push (refund) or settle as split half-stakes, and two-way market odds carry neither — treat the numbers as a guide, not exact values."
+      ],
+      "notesTitle": "Three things that always hold",
+      "notes": [
+        "Matches without Pinnacle odds get no EV / value in ANY mode — model EV without a market reference is the most dangerous output.",
+        "The model is always tagged experimental and shown alongside the market; the two probability sources are never blended.",
+        "Everything here is for reference only, not betting advice. Bet within your means (see the resources in the footer)."
+      ]
+    },
+    "moreTitle": "Done reading?",
+    "moreBody": "These five chapters are all the background the EV calculator needs. Remember three things: the model is experimental, the closing market is usually the most accurate, and every verdict here is reference only.",
+    "moreCta": "Go to the EV calculator"
   },
   "market": {
     "h2h": "1X2",
