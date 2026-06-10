@@ -316,15 +316,15 @@ if abs(elo_home − elo_away) >= UPSET_ELO_GAP (預設 150)
 | **TU1** | i18n 覆蓋 | `zh-TW`/`en` 字典 key 一一對應、無缺；無 hardcode 顯示字串；切換 locale 全站生效；隊名走 `name_zh`/`name_en`（非機翻）；`name_zh=null` → fallback `name_en` 不 crash | A/C |
 | **TU2** | 模型⇄市場並列 | 凡顯示模型 1X2/大小分處，有盤時並列市場去 vig；模型帶「實驗性」標籤；無「唯一答案」排版 | C（**部分自動化**） |
 | **TU3** | 無盤 graceful | 無市場的場次只秀模型 + 強化實驗標籤 + 不出 value/EV，且不報錯 | C（**自動化**） |
-| **TU4** | 淘汰賽 TBD | 淘汰賽未抽籤 → 顯示「待抽籤」佔位、不 crash、不臆造對戰 | C |
+| **TU4** | 淘汰賽 TBD | 淘汰賽未抽籤 → 顯示「待抽籤」佔位、不 crash、不臆造對戰 | C（**自動化**） |
 | **TU5** | value.ts ⇄ value.py 一致 | `toDecimal/ev/kellyFraction/isQuarterLine/totalsLineMatches/evaluate` 對 P3 TV1/TV3/TV6/TV8 黃金向量輸出與 `engine/value.py` 完全一致。**黃金向量由 `engine/value.py` 生成存 `web/tests/fixtures/golden_vectors.json`**，vitest 對該 JSON 比（Issue 10） | A |
 | **TU6** | value 隔離 | value 路徑只吃 server `pinnacle_novig`；`lib/value.ts` 不 import 任何模型機率（靜態檢查 + 程式碼掃描）；`model_layer` 不進 `evaluate` | A/B |
 | **TU7** | 賠率格式轉換 | HK/American/Indonesian/Malaysian → decimal 與 P3 §5.6 範例一致；`d≤1` → UI 即時錯誤 | A |
 | **TU8** | line-mismatch / quarter | 使用者 totals 線 ≠ Pinnacle 主線 → 標 `line_mismatch`、不出 EV/value；quarter line → EV/Kelly 標「近似」 | A/C |
-| **TU9** | attribution / 市場聲明 | 每頁（雙語）含 Elo CC BY-SA 4.0 attribution + 市場效率聲明 | C |
+| **TU9** | attribution / 市場聲明 | 每頁（雙語）含 Elo CC BY-SA 4.0 attribution + 市場效率聲明 | C（**自動化**） |
 | **TU10** | provenance / 新鮮度 | 頁面顯示 `elo_asof` / `model_version` / `sim_n` / 市場 `captured_at`（stale 標警示） | C |
 | **TU11** | service key 安全 | `SUPABASE_SERVICE_KEY` 不出現在 client bundle（無 `NEXT_PUBLIC_`）；只 server 路徑使用（建置產物掃描） | B |
-| **TU12** | 負責任博弈 footer | `/value`（雙語）含負責任博弈聲明 | C |
+| **TU12** | 負責任博弈 footer | `/value`（雙語）含負責任博弈聲明 | C（**自動化**） |
 | **TU13** | 爆冷規則 | `|Δelo|≥150` 且弱隊 `(p_win+p_draw)≥0.40` → 出 badge；閾值為可調常數 | A |
 | **TU14** | 群組機率呈現 | `/groups` 每組 4 隊；`p_first` 組內加總 ≈ 1（容差 ±1/sim_n）；按 `p_advance` 排序橫條正確 | A/C |
 
@@ -338,6 +338,8 @@ if abs(elo_home − elo_away) >= UPSET_ELO_GAP (預設 150)
 |---|---|
 | `tests/ModelVsMarket.test.tsx` | **TU2（部分）**：有盤 → 模型與市場機率**並列**渲染 + 「實驗性」標籤存在；**TU3（matches 側）**：無盤 → 只渲染模型 + 明示 no-market note + 不渲染市場 bar + 不 throw |
 | `tests/ValueCalculator.test.tsx` | **TU3（value 側）**：`market_available=false` → 出 no-market 訊息、**不出 value/EV 判定**、responsible footer 仍在（**TU12**） |
+| `tests/KnockoutTbd.test.tsx` | **TU4**：data-independent 佔位（無 props）渲染「待抽籤」heading + desc，雙語、不 crash、不臆造對戰 |
+| `tests/Footers.test.tsx` | **TU9**：市場效率聲明 + Elo CC BY-SA 4.0 license / eloratings.net 連結（by role + href）；**TU12**：負責任博弈 title + body；皆驗 en + zh-TW 雙語 |
 
 > ⚠️ **TU2 的「無唯一答案排版」是視覺/設計判斷，刻意留人工**——Testing Library 無法測排版意圖，硬寫 class 斷言會脆裂。人工 checklist：模型無置中大字、無「預測：X 勝」斷言式標題、模型側永遠有市場並列（或無盤時強化標籤）。
 

@@ -5,6 +5,7 @@ import { siteTz } from '@/lib/format';
 import type { Locale } from '@/lib/routing';
 import MatchCard from '@/components/MatchCard';
 import EmptyState from '@/components/EmptyState';
+import KnockoutTbd from '@/components/KnockoutTbd';
 
 export const revalidate = 1800; // time-based ISR (spec §2 / Issue 2)
 
@@ -43,10 +44,7 @@ export default async function MatchesPage({ params }: { params: Promise<{ locale
       )}
 
       {/* Knockout TBD placeholder (trap #10 / §6.4 / TU4) — graceful, no fabricated matchups */}
-      <section className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4">
-        <h2 className="text-sm font-semibold text-slate-700">{t('matches.knockoutTbd')}</h2>
-        <p className="mt-1 text-sm text-slate-500">{t('matches.knockoutTbdDesc')}</p>
-      </section>
+      <KnockoutTbd />
     </div>
   );
 }
