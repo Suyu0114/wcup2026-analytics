@@ -5,7 +5,13 @@ import {
   ev,
   kellyFraction,
   isQuarterLine,
+  isHalfLine,
+  evWithPush,
+  kellyWithPush,
+  quarterComponents,
   evaluate,
+  evaluateModelTotals,
+  evaluateModelTotalsQuarter,
   type EvaluateOptions,
 } from '../lib/value';
 
@@ -51,6 +57,57 @@ describe('isQuarterLine parity (TU8)', () => {
       expect(isQuarterLine(c.point)).toBe(c.expected);
     });
   }
+});
+
+describe('isHalfLine parity (TB7)', () => {
+  for (const c of golden.is_half_line) {
+    it(`point=${c.point}`, () => {
+      expect(isHalfLine(c.point)).toBe(c.expected);
+    });
+  }
+});
+
+describe('push-aware model-mode arithmetic parity (TB6)', () => {
+  for (const c of golden.ev_with_push) {
+    it(`evWithPush pWin=${c.pWin} pPush=${c.pPush} d=${c.d}`, () => {
+      expect(evWithPush(c.pWin, c.pPush, c.d)).toBeCloseTo(c.expected, 12);
+    });
+  }
+  for (const c of golden.kelly_with_push) {
+    it(`kellyWithPush pWin=${c.pWin} pPush=${c.pPush} d=${c.d}`, () => {
+      expect(kellyWithPush(c.pWin, c.pPush, c.d, c.fraction)).toBeCloseTo(c.expected, 12);
+    });
+  }
+  golden.evaluate_model_totals.forEach((c, i) => {
+    it(`evaluateModelTotals case ${i}`, () => {
+      const r = evaluateModelTotals(c.pWin, c.pPush, c.userValue, c.userFormat);
+      const e = c.expected;
+      expect(r.decimal_odds).toBeCloseTo(e.decimal_odds, 12);
+      expect(r.ev).toBeCloseTo(e.ev, 12);
+      expect(r.value).toBe(e.value);
+      expect(r.kelly_fraction).toBeCloseTo(e.kelly_fraction, 12);
+      expect(r.kelly_approximate).toBe(false);
+    });
+  });
+  golden.evaluate_model_totals_quarter.forEach((c, i) => {
+    it(`evaluateModelTotalsQuarter case ${i}`, () => {
+      const r = evaluateModelTotalsQuarter(
+        c.lo as [number, number],
+        c.hi as [number, number],
+        c.userValue,
+        c.userFormat,
+      );
+      const e = c.expected;
+      expect(r.ev).toBeCloseTo(e.ev, 12);
+      expect(r.kelly_fraction).toBeCloseTo(e.kelly_fraction, 12);
+      expect(r.kelly_approximate).toBe(true);   // quarter Kelly is approximate (TB7)
+    });
+  });
+  it('quarterComponents splits to neighbours', () => {
+    expect(quarterComponents(2.25)).toEqual([2.0, 2.5]);
+    expect(quarterComponents(3.75)).toEqual([3.5, 4.0]);
+    expect(() => quarterComponents(2.5)).toThrow();
+  });
 });
 
 describe('evaluate parity (TU5 / TU8)', () => {

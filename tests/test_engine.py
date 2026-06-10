@@ -45,8 +45,39 @@ def test_t8_host_advantage_switch():
     assert host["p_home"] > base["p_home"]
 
 
+def test_ta2_host_away_advantage_symmetric():
+    """P6 A1: fd lists hosts as the away side in round-3 group games — is_host_away
+    must mirror is_host_home exactly (HFA shifts d symmetrically)."""
+    base = predict_match(BASE_ELO, BASE_ELO)
+    away_host = predict_match(BASE_ELO, BASE_ELO, is_host_away=True)
+    assert away_host["lambda_away"] > base["lambda_away"]
+    assert away_host["p_away"] > base["p_away"]
+
+    home_host = predict_match(BASE_ELO, BASE_ELO, is_host_home=True)
+    assert abs(away_host["lambda_away"] - home_host["lambda_home"]) < 1e-9
+    assert abs(away_host["p_away"] - home_host["p_home"]) < 1e-6
+
+    # Both flags (never happens in data, but must cancel, not explode).
+    both = predict_match(BASE_ELO, BASE_ELO, is_host_home=True, is_host_away=True)
+    assert abs(both["lambda_home"] - base["lambda_home"]) < 1e-9
+
+
 @pytest.mark.parametrize("diff,anchor", [(100, 0.64), (200, 0.76), (400, 0.91)])
-def test_t9_we_calibration_anchors(diff, anchor):
+def test_t9_we_calibration_anchors_v10_priors(diff, anchor, monkeypatch):
+    """T9 anchors the dc-v1.0 PRIOR design (P6 spec §2.2.4: kept for v1.0; for the
+    fitted dc-v1.1 the anchors are a diagnostic only — see fit/REPORT.md)."""
+    import engine.dixon_coles as dc
+    monkeypatch.setattr(dc, "BASE", 1.35)
+    monkeypatch.setattr(dc, "GAMMA", 0.90)
+    monkeypatch.setattr(dc, "HFA_ELO", 100.0)
+    monkeypatch.setattr(dc, "RHO", -0.10)
     out = predict_match(BASE_ELO + diff, BASE_ELO, is_host_home=False)
     we = out["p_home"] + 0.5 * out["p_draw"]   # win expectancy, NOT p_home
     assert abs(we - anchor) <= 0.03, f"We={we:.3f} vs anchor {anchor} (diff {we - anchor:+.3f})"
+
+
+def test_ta4_deployed_constants_match_fit_report():
+    """Provenance pin: engine constants = fit/REPORT.md deployed row (P6 A2)."""
+    import engine.dixon_coles as dc
+    assert dc.MODEL_VERSION == "dc-v1.1"
+    assert (dc.BASE, dc.GAMMA, dc.HFA_ELO, dc.RHO) == (1.2014, 0.5478, 84.5, -0.12)

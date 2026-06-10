@@ -56,7 +56,7 @@ def fetch_matches_to_predict() -> list[dict]:
     return (
         get_client()
         .table("matches")
-        .select("match_id,home_team,away_team,is_host_home")
+        .select("match_id,home_team,away_team,is_host_home,is_host_away")
         .execute()
         .data
     )
@@ -157,6 +157,64 @@ def upsert_model_total_lines(rows: list[dict]) -> int:
     return len(rows)
 
 
+# --- P6 A3 diagnosis reads (read-only) ---
+
+def fetch_latest_pinnacle(market: str) -> dict:
+    """{match_id: {(outcome, point): decimal_odds}} — latest stored price per series.
+
+    Ordered by captured_at ascending so the dict overwrite leaves the newest price.
+    Paginated (PostgREST ~1000-row cap)."""
+    client = get_client()
+    out: dict = {}
+    start, page = 0, 1000
+    while True:
+        chunk = (
+            client.table("odds_snapshots")
+            .select("match_id,outcome,point,decimal_odds,captured_at")
+            .eq("bookmaker", "pinnacle")
+            .eq("market", market)
+            .order("captured_at")
+            .range(start, start + page - 1)
+            .execute()
+            .data
+        )
+        for r in chunk:
+            pt = r.get("point")
+            key = (r["outcome"], None if pt is None else float(pt))
+            out.setdefault(r["match_id"], {})[key] = float(r["decimal_odds"])
+        if len(chunk) < page:
+            return out
+        start += page
+
+
+def fetch_model_total_lines_map(model_version: str) -> dict:
+    """{(match_id, point): (model_p_over, model_p_under)}."""
+    data = (
+        get_client()
+        .table("model_total_lines")
+        .select("match_id,point,model_p_over,model_p_under")
+        .eq("model_version", model_version)
+        .execute()
+        .data
+    )
+    return {
+        (d["match_id"], float(d["point"])): (float(d["model_p_over"]), float(d["model_p_under"]))
+        for d in data
+    }
+
+
+def fetch_matches_with_names() -> dict:
+    """{match_id: 'HomeName v AwayName (kickoff date)'} for report readability."""
+    teams = {t["team_id"]: t["name_en"] for t in fetch_teams()}
+    out = {}
+    for m in fetch_matches_for_mapping():
+        out[m["match_id"]] = (
+            f"{teams.get(m['home_team'], m['home_team'])} v "
+            f"{teams.get(m['away_team'], m['away_team'])} ({m['kickoff_utc'][:10]})"
+        )
+    return out
+
+
 # --- calibration reads (P3 §6) ---
 
 def fetch_settled_matches() -> list[dict]:
@@ -200,6 +258,17 @@ def fetch_pinnacle_closing_h2h() -> dict:
     for d in data:
         out.setdefault(d["match_id"], {})[d["outcome"]] = float(d["decimal_odds"])
     return out
+
+
+def fetch_prediction_versions() -> list[str]:
+    """All model_versions present in match_predictions (TA5: calibrate scores each)."""
+    data = get_client().table("match_predictions").select("model_version").execute().data
+    return sorted({d["model_version"] for d in data})
+
+
+def insert_calibration_run(row: dict) -> None:
+    """Append-only provenance log (P6 §3.5): one row per calibrate run per version."""
+    get_client().table("calibration_runs").insert(row).execute()
 
 
 def upsert_predictions(rows: list[dict]) -> int:

@@ -4,7 +4,13 @@ import { novig } from './devig';
 import { computeUpset } from './upset';
 import { computeDivergence } from './divergence';
 import { isQuarterLine } from './value';
-import { MODEL_VERSION, PINNACLE, FRESH_WINDOW_MS } from './constants';
+import {
+  MODEL_VERSION,
+  PINNACLE,
+  FRESH_WINDOW_MS,
+  KELLY_UNLOCK_N,
+  KELLY_UNLOCK_BRIER_RATIO,
+} from './constants';
 import type {
   MatchesResponse,
   MatchView,
@@ -12,6 +18,8 @@ import type {
   GroupsResponse,
   GroupTeam,
   ValueMarketResponse,
+  CalibrationStatus,
+  ModelTotalsGridEntry,
   BookPrice,
   Freshness,
   FreshnessSummary,
@@ -261,6 +269,40 @@ export async function getGroups(): Promise<GroupsResponse> {
   }
 }
 
+/** Latest calibration_runs row for the active version; kelly_unlocked judged here,
+ * server-side (P6 §3.5 / TB12). Table may not exist pre-DDL → null (graceful). */
+async function fetchCalibration(
+  client: NonNullable<ReturnType<typeof getSupabase>>,
+): Promise<CalibrationStatus | null> {
+  try {
+    const { data, error } = await client
+      .from('calibration_runs')
+      .select('model_version,run_at,n_settled,model_brier,market_brier')
+      .eq('model_version', MODEL_VERSION)
+      .order('run_at', { ascending: false })
+      .limit(1);
+    if (error || !data?.[0]) return null;
+    const c = data[0];
+    const modelBrier = c.model_brier === null ? null : Number(c.model_brier);
+    const marketBrier = c.market_brier === null ? null : Number(c.market_brier);
+    const unlocked =
+      Number(c.n_settled) >= KELLY_UNLOCK_N &&
+      modelBrier !== null &&
+      marketBrier !== null &&
+      modelBrier <= marketBrier * KELLY_UNLOCK_BRIER_RATIO;
+    return {
+      model_version: c.model_version,
+      run_at: c.run_at,
+      n_settled: Number(c.n_settled),
+      model_brier: modelBrier,
+      market_brier: marketBrier,
+      kelly_unlocked: unlocked,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function getValueMarket(
   matchId: string,
   market: 'h2h' | 'totals',
@@ -276,13 +318,17 @@ export async function getValueMarket(
     is_quarter_line: null,
     best_available: null,
     line_shopping: [],
-    model_layer: null,
+    model_h2h: null,
+    model_totals_grid: null,
+    calibration: null,
     freshness: null,
   };
   const client = getSupabase();
   if (!client) return base;
   try {
     const rows = await fetchLatestOdds(client, [matchId]);
+    const calibration = await fetchCalibration(client);
+
     if (market === 'h2h') {
       const pinH2H: Record<string, number> = {};
       for (const r of rows) if (r.bookmaker === PINNACLE && r.market === 'h2h') pinH2H[r.outcome] = r.decimal_odds;
@@ -292,12 +338,36 @@ export async function getValueMarket(
         .filter((r) => r.market === 'h2h' && r.outcome === outcome)
         .map((r) => ({ book: r.bookmaker, decimal: r.decimal_odds }))
         .sort((a, b) => b.decimal - a.decimal);
+
+      // model side (P6 §5) — separate object; consumed only in model mode
+      let modelH2h: ValueMarketResponse['model_h2h'] = null;
+      try {
+        const { data: mp } = await client
+          .from('match_predictions')
+          .select('model_version,p_home,p_draw,p_away')
+          .eq('match_id', matchId)
+          .eq('model_version', MODEL_VERSION)
+          .limit(1);
+        if (mp?.[0]) {
+          modelH2h = {
+            model_version: mp[0].model_version,
+            p_home: Number(mp[0].p_home),
+            p_draw: Number(mp[0].p_draw),
+            p_away: Number(mp[0].p_away),
+          };
+        }
+      } catch {
+        modelH2h = null;
+      }
+
       return {
         ...base,
         market_available: p !== null,
         pinnacle_novig: p ? (p[outcome] ?? null) : null,
         best_available: lineShopping[0] ?? null,
         line_shopping: lineShopping,
+        model_h2h: modelH2h,
+        calibration,
         freshness: freshnessOf(rows.filter((r) => r.bookmaker === PINNACLE && r.market === 'h2h')),
       };
     }
@@ -323,24 +393,27 @@ export async function getValueMarket(
             .map((r) => ({ book: r.bookmaker, decimal: r.decimal_odds }))
             .sort((a, b) => b.decimal - a.decimal);
 
-    // model layer at the actual Pinnacle line (P3 §4.4 / §5.4) — experimental, isolated
-    let modelLayer: ValueMarketResponse['model_layer'] = null;
-    if (mainPoint !== null) {
-      const { data: mtl } = await client
+    // model totals grid 1.5–4.5 + push (P6 §3.4; replaces model_layer). Pre-DDL the
+    // model_p_push column may not exist → null grid (graceful §6.6).
+    let grid: ModelTotalsGridEntry[] | null = null;
+    try {
+      const { data: mtl, error: ge } = await client
         .from('model_total_lines')
-        .select('point,model_p_over,model_p_under,model_version')
+        .select('point,model_p_over,model_p_under,model_p_push')
         .eq('match_id', matchId)
-        .eq('model_version', MODEL_VERSION)
-        .eq('point', mainPoint)
-        .limit(1);
-      if (mtl && mtl[0]) {
-        modelLayer = {
-          model_version: mtl[0].model_version,
-          point: Number(mtl[0].point),
-          p_over: Number(mtl[0].model_p_over),
-          p_under: Number(mtl[0].model_p_under),
-        };
+        .eq('model_version', MODEL_VERSION);
+      if (!ge && mtl && mtl.length > 0) {
+        grid = mtl
+          .map((g) => ({
+            point: Number(g.point),
+            p_over: Number(g.model_p_over),
+            p_under: Number(g.model_p_under),
+            p_push: Number(g.model_p_push),
+          }))
+          .sort((a, b) => a.point - b.point);
       }
+    } catch {
+      grid = null;
     }
 
     return {
@@ -351,7 +424,8 @@ export async function getValueMarket(
       is_quarter_line: mainPoint === null ? null : isQuarterLine(mainPoint),
       best_available: lineShopping[0] ?? null,
       line_shopping: lineShopping,
-      model_layer: modelLayer,
+      model_totals_grid: grid,
+      calibration,
       freshness: freshnessOf(rows.filter((r) => r.bookmaker === PINNACLE && r.market === 'totals')),
     };
   } catch {

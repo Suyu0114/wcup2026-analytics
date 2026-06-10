@@ -1,12 +1,8 @@
-"""Dixon–Coles Poisson prediction engine (P1, spec §5).
+"""Dixon–Coles Poisson prediction engine (P1 spec §5; constants fitted in P6 A2).
 
 Pure functions, no I/O — everything here is offline-testable. Pipeline:
 Elo -> expected goals λ (log-linear, always positive) -> Dixon–Coles score
 matrix -> 1X2 / Over-2.5 / BTTS probabilities.
-
-⚠️ The constants below are PRIORS, not truth (spec §5.0): they let the engine
-run and pass sanity tests (incl. the T9 We anchors). P3's backtest fits them
-against historical results + closing odds. Don't treat them as calibrated.
 """
 from __future__ import annotations
 
@@ -14,22 +10,35 @@ import math
 
 from scipy.stats import poisson
 
-MODEL_VERSION = "dc-v1.0"
+MODEL_VERSION = "dc-v1.1"
 
-# §5.0 calibration priors (to be fit in P3).
-BASE = 1.35       # baseline goals per team (international average)
-GAMMA = 0.90      # Elo -> λ strength
-HFA_ELO = 100.0   # host home advantage in Elo points; applied only when is_host_home
-RHO = -0.10       # Dixon–Coles low-score correction (small negative; too large -> negative probs)
+# FITTED constants (P6 A2) — no longer the §5.0 priors.
+# Provenance: fit/fit_dc.py — martj42 intl results (CC0) × Elo yearly snapshots
+# (pre-match snapshot only, zero leakage); era 2010-01-01..2026-06-08, n=1932
+# matches between WC2026-qualified teams; time-decay half-life 2y; deployed =
+# full-window refit. Gate: validation 1X2 log-loss 1.0492 vs v1.0 priors 1.1239
+# (PASS). Full diagnostics: fit/REPORT.md (2026-06-10).
+# dc-v1.0 priors were BASE 1.35 / GAMMA 0.90 / HFA 100 / RHO -0.10 (kept in
+# tests/test_engine.py T9, which anchors the v1.0 prior design).
+BASE = 1.2014     # baseline goals per team
+GAMMA = 0.5478    # Elo -> λ strength (prior 0.90 over-amplified favorites — see A3)
+HFA_ELO = 84.5    # host home advantage in Elo points; only when is_host_home/away
+RHO = -0.12       # Dixon–Coles low-score correction
 MAXG = 10         # score-matrix upper bound (goals per team)
 
 
-def elo_to_lambdas(elo_home: float, elo_away: float, is_host_home: bool) -> tuple[float, float]:
+def elo_to_lambdas(
+    elo_home: float, elo_away: float, is_host_home: bool, is_host_away: bool = False
+) -> tuple[float, float]:
     """Elo -> (λ_home, λ_away). Log-linear so both stay > 0 (spec §5.1).
 
-    HFA is applied only for a host nation playing at home; neutral venue => 0.
+    HFA only for a host nation playing in its own country; neutral venue => 0.
+    It shifts the Elo difference d symmetrically, so it works for either listed
+    side: football-data lists the hosts as the AWAY team in their third group
+    games (e.g. Czechia v Mexico at Azteca) — is_host_away applies −HFA to d
+    (P6 spec §2.1 impl note).
     """
-    ha = HFA_ELO if is_host_home else 0.0
+    ha = (HFA_ELO if is_host_home else 0.0) - (HFA_ELO if is_host_away else 0.0)
     d = (elo_home + ha - elo_away) / 400.0
     lam_home = BASE * math.exp(+GAMMA * d)
     lam_away = BASE * math.exp(-GAMMA * d)
@@ -70,9 +79,11 @@ def derive(P: list[list[float]], maxg: int = MAXG) -> tuple[float, float, float,
     return p_home, p_draw, p_away, p_o25, p_btts
 
 
-def predict_match(elo_home: float, elo_away: float, is_host_home: bool = False) -> dict:
+def predict_match(
+    elo_home: float, elo_away: float, is_host_home: bool = False, is_host_away: bool = False
+) -> dict:
     """Full engine output for one match (spec §5.3 fields). Native floats for JSON/DB."""
-    lh, la = elo_to_lambdas(elo_home, elo_away, is_host_home)
+    lh, la = elo_to_lambdas(elo_home, elo_away, is_host_home, is_host_away)
     p_home, p_draw, p_away, p_o25, p_btts = derive(score_matrix(lh, la))
     return {
         "model_version": MODEL_VERSION,

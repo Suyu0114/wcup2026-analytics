@@ -4,6 +4,9 @@ scipy
 requests
 python-dotenv
 
+# P6 A2 historical fit (fit/fit_dc.py): Poisson GLM + clustered SE
+statsmodels
+
 # Supabase / Postgres client (server-side writes)
 supabase
 

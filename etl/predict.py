@@ -16,7 +16,12 @@ from etl import db
 
 def build_prediction_row(match: dict, elo_home: float, elo_away: float) -> dict:
     """Pure: one matches row + both Elos -> one match_predictions row."""
-    row = predict_match(elo_home, elo_away, bool(match.get("is_host_home")))
+    row = predict_match(
+        elo_home,
+        elo_away,
+        bool(match.get("is_host_home")),
+        bool(match.get("is_host_away")),
+    )
     row["match_id"] = match["match_id"]
     return row
 
