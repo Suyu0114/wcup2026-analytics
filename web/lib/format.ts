@@ -9,10 +9,8 @@ export function formatDecimal(d: number, digits = 2): string {
 }
 
 export function siteTz(locale?: string): string {
-  if (locale === 'en') {
-    return 'America/Toronto';
-  }
-  return process.env.SITE_TZ || 'Asia/Taipei';
+  if (locale === 'en') return 'America/Toronto';
+  return 'Asia/Taipei';
 }
 
 export function formatKickoff(iso: string, locale: string, tz: string): { local: string; utc: string } {
