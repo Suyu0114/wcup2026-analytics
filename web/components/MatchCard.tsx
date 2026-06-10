@@ -5,6 +5,7 @@ import { displayTeamName } from '@/lib/teamName';
 import { formatKickoff, formatPercent } from '@/lib/format';
 import ModelVsMarket from './ModelVsMarket';
 import UpsetBadge from './UpsetBadge';
+import DivergenceBadge from './DivergenceBadge';
 import FreshnessIndicator from './FreshnessIndicator';
 import Flag from './Flag';
 
@@ -43,6 +44,7 @@ export default function MatchCard({
             </span>
           )}
           {match.model?.upset.flag && <UpsetBadge />}
+          {match.divergence?.flag && <DivergenceBadge />}
         </div>
         <div className="text-right text-xs text-slate-500">
           <div>{kickoff.local}</div>

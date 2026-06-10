@@ -135,6 +135,10 @@
     "badge": "Upset risk",
     "tooltip": "Large Elo gap, yet the underdog's not-lose probability is still meaningful."
   },
+  "divergence": {
+    "badge": "Diverges from market",
+    "tooltip": "The model's most-likely outcome differs from the market's. A divergence doesn't mean the market is wrong — more often it's a model limitation; for comparison only, not betting advice."
+  },
   "footer": {
     "attribution": "Elo data from eloratings.net, released under CC BY-SA 4.0.",
     "attributionLinkText": "License",

@@ -1,5 +1,6 @@
 // Shared API/view types (spec §4). model and market are kept in separate objects so the
 // frontend can never mix them into the value path (D5 / TU6).
+import type { Outcome } from './divergence';
 
 export interface TeamRef {
   team_id: string;
@@ -52,6 +53,9 @@ export interface MatchView {
   away: TeamRef;
   model: MatchModel | null; // experimental; never a standalone answer (D5)
   market: MatchMarket | null; // null when no odds posted yet (graceful, §6.1)
+  // Cross-comparison: model vs market most-likely outcome. null when either side missing.
+  // Display-only "they disagree" signal — never a value signal (divergence.ts).
+  divergence: { flag: boolean; modelPick: Outcome; marketPick: Outcome } | null;
 }
 
 export interface MatchesResponse {

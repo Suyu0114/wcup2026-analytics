@@ -135,6 +135,10 @@
     "badge": "爆冷風險",
     "tooltip": "兩隊 Elo 差距大，但弱隊不敗機率仍不低。"
   },
+  "divergence": {
+    "badge": "與市場分歧",
+    "tooltip": "模型與市場最看好的結果不同。分歧不代表市場有誤——多半反而是模型的侷限，僅供對照、非投注建議。"
+  },
   "footer": {
     "attribution": "Elo 資料源自 eloratings.net，依 CC BY-SA 4.0 釋出。",
     "attributionLinkText": "授權條款",
