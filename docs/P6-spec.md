@@ -457,5 +457,17 @@ create index calibration_runs_lookup on calibration_runs (model_version, run_at 
 - **R4（TB8 執法強度）**：成立、原風險清單漏列。「來源標示制」弱於「程式層斷開」是本次修訂的代價 → 三層補強：`selectProb` 單一選點、可區分夾具精確數值斷言、標籤與 p 同物件（§3.1 / TB8 / 風險 #11）。
 - **R5（要不要兩種 model 並存）**：裁決**不做使用者可切換雙模型**。DB / 校正層已天然雙版本並存對照（TA5、calibrate 逐版本計分），比較的好處免費拿到；UI 單一 active 版本（§1.8），v1.1 沒過驗證就留在 v1.0。
 
+## 12. 實作紀錄（2026-06-10，impl round；spec 與現實不符處依專案原則標記於此）
+
+- **I1（⚠️ spec §2.1 修正——fd 把第三輪地主列為客隊）**：football-data 對 Switzerland v Canada / Czechia v Mexico / Turkey v United States 的定向把地主放 away，但比賽都在地主國（martj42 neutral=FALSE + Wikipedia 交叉驗證）。spec 公式 `is_host_home`（只抬主隊）蓋不到這 3 場。**裁決：不交換 matches 定向**（odds/賽果 ingest 都對齊 fd 定向，交換會埋雷）；改為引擎加對稱旗標 `is_host_away`（HFA 對 d 施加 ±，與 GLM signed indicator 同構）+ `matches.is_host_away` 欄位（migrations/p6.sql）。小組賽不變量 = host_home 6 + host_away 3。
+- **I2（fd 無 venue）**：實測 0/104 場有 venue 欄 → 9 場地主賽全走 `etl/venues.py` 策展表（來源 = martj42 WC2026 賽程列 + fd 對手/時間 ±1 天 + Wikipedia 官方場館；16 城市表）。淘汰賽地主主場屆時會因 fail-loud raise 強制補表。
+- **I3（results.csv 含未開賽列）**：資料集把 WC2026 賽程（NA 比分）也收進去 → fit 過濾 `dropna(score)`；README 記載。
+- **I4（ET 污染實測 2.85%，spec 猜 <1%）**：以 shootouts.csv join 得下界 55/1932 場；對 BASE 影響仍 ≈ +0.004，接受並記錄（REPORT）。
+- **I5（擬合結果，gate PASS）**：n=1932（兩隊皆 ∈48、零快照缺漏）；HL=2y 中選。validation 1X2 log-loss：candidate 1.0492 < v1.0 先驗 1.1239 < We 基準 1.3816 → **bump dc-v1.1**。部署參數（全窗 refit）：`BASE 1.2014 / GAMMA 0.5478 / HFA_ELO 84.5 / RHO −0.12`。GAMMA 遠低於先驗 0.90、BASE 低於 1.35——與 A3 市場診斷（v1.0 高估強隊 +3.9pp、totals over +10.2pp）方向一致（外部基準印證）。HFA 擬合 ≈85–114 與先驗 100 相容。不對稱診斷 h_att +0.159 / h_def −0.175 → 對稱假設成立。T9 錨點偏低 −0.056~−0.104（>±0.05，已依 §2.2.4 揭露：錨點是 Elo 自家定義曲線，48 強現代樣本更平均；attenuation 亦壓低 GAMMA——內插診斷變體 0.73）。
+- **I6（gate 用 train-fit、部署用全窗 refit）**：§2.2.5 的 impl note——gate 在 train-fitted candidate 上裁決，部署常數用選定 HL 對全窗 refit（吃進最近 2.5 年資料；REPORT 兩組並列）。
+- **I7（隊名 guard 修正）**：「每隊 ≥20 場」guard 改對**全資料集**檢查（抓拼字漏對），不對 both-in-48 樣本（Curaçao 對其他 47 強只有 19 場是事實非錯誤，列 REPORT）。實際 alias 只需 1 條：`Czech Republic`→`Czechia`。
+- **I8（model_layer → model_totals_grid）**：API 欄位如 §5 替換完成；前端唯一呼叫點同步改。
+- **I9（環境）**：statsmodels 入 requirements；本機無 Node → conda WC2026 裝 nodejs 26（web 測試/建置用）。
+
 ---
-P6 spec 草案 2026-06-09（§1 八項裁決；review round 1 R1–R5 已併入，見 §11）。**待 user review 通過後動 code。**
+P6 spec 定案 2026-06-09；review round 1（§11）+ 實作紀錄（§12）2026-06-10 併入。Workstream A+B code 完成；pipeline 重跑待 migrations/p6.sql 套用。

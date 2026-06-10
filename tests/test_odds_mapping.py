@@ -2,7 +2,7 @@
 import pytest
 
 from etl.ingest_odds import build_pair_index, map_outcome, pinnacle_main_point
-from etl.model_lines import model_over_under
+from etl.model_lines import TOTALS_GRID, line_probs, totals_distribution
 from sources.odds_source import OddsBookmaker, OddsEvent, OddsMarket, OddsOutcome
 
 MATCH = {"match_id": "X", "home_team": "MX", "away_team": "ZA", "kickoff_utc": "2026-06-11T19:00:00+00:00"}
@@ -46,16 +46,31 @@ def test_pinnacle_main_point_picks_most_balanced():
     assert pinnacle_main_point(ev, ALIAS, MATCH) == 2.25
 
 
-def test_model_over_under_half_line_sums_to_one():
-    over, under = model_over_under(1.5, 1.2, 2.5)   # .5 line: no push -> over+under == 1
+def test_model_line_probs_half_line_sums_to_one():
+    t = totals_distribution(1.5, 1.2)
+    over, under, push = line_probs(t, 2.5)          # .5 line: no push
+    assert push == 0.0
     assert over + under == pytest.approx(1.0)
 
 
-def test_model_over_under_uses_lambdas_not_fixed_line():
+def test_model_line_probs_uses_lambdas_not_fixed_line():
     # stronger attack -> higher P(over) at the same line
-    o_lo, _ = model_over_under(1.0, 0.8, 2.5)
-    o_hi, _ = model_over_under(2.2, 1.8, 2.5)
+    o_lo = line_probs(totals_distribution(1.0, 0.8), 2.5)[0]
+    o_hi = line_probs(totals_distribution(2.2, 1.8), 2.5)[0]
     assert o_hi > o_lo
+
+
+def test_tb11_grid_shape_and_push():
+    """P6 TB11: 13 grid lines; over+under+push ≈ 1; push>0 only on integer lines."""
+    assert len(TOTALS_GRID) == 13 and TOTALS_GRID[0] == 1.5 and TOTALS_GRID[-1] == 4.5
+    t = totals_distribution(1.4, 1.1)
+    for line in TOTALS_GRID:
+        over, under, push = line_probs(t, line)
+        assert over + under + push == pytest.approx(1.0)
+        if line == int(line):
+            assert push > 0.0
+        else:
+            assert push == 0.0
 
 
 def test_to9_bookmaker_count_keeps_two_credit_cost():

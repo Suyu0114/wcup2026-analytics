@@ -13,7 +13,7 @@ import argparse
 from collections import defaultdict
 from datetime import date, datetime
 
-from etl import config
+from etl import config, venues
 from etl.identity import build_alias_map, resolve
 from sources.fixture_source import Fixture, FootballDataFixtureSource
 from sources.rating_source import CsvRatingSource
@@ -21,6 +21,10 @@ from sources.rating_source import CsvRatingSource
 EXPECTED_TOTAL = 104           # all matches from source (TF1 upstream sanity)
 EXPECTED_GROUP = 72            # 12 groups x 6 (resolvable pre-tournament)
 EXPECTED_TEAMS = 48
+# P6 A1 (TA1): group-stage host venue flags are a fixed invariant — hosts are at
+# home in their own country 9 times; football-data lists them home 6x, away 3x.
+EXPECTED_HOST_HOME = 6
+EXPECTED_HOST_AWAY = 3
 GROUP_LETTERS = set("ABCDEFGHIJKL")
 KICKOFF_WINDOW = (date(2026, 6, 11), date(2026, 7, 19))
 
@@ -34,6 +38,8 @@ def _has_teams(f: Fixture) -> bool:
 
 
 def _match_row(f: Fixture, home_id: str, away_id: str) -> dict:
+    # P6 A1: host venue lookup (raises for a host match with no curated venue).
+    is_host_home, is_host_away = venues.host_flags(f.match_id, home_id, away_id, f.venue)
     return {
         "match_id": f.match_id,
         "stage": f.stage,
@@ -41,7 +47,8 @@ def _match_row(f: Fixture, home_id: str, away_id: str) -> dict:
         "home_team": home_id,
         "away_team": away_id,
         "kickoff_utc": f.kickoff_utc,
-        "is_host_home": False,          # v1 always neutral (spec §2.2 / §4.2)
+        "is_host_home": is_host_home,
+        "is_host_away": is_host_away,
         "status": f.status,
     }
 
@@ -84,6 +91,15 @@ def validate(fixtures: list[Fixture], rows: list[dict]) -> None:
         if latest_group > min(ko_dates):
             raise ValueError(f"TF4: group stage not before knockout ({latest_group} > {min(ko_dates)})")
 
+    # TA1 (P6 A1): host venue flags — fixed group-stage invariant (6 home + 3 away).
+    hh = sum(1 for r in group_rows if r["is_host_home"])
+    ha = sum(1 for r in group_rows if r["is_host_away"])
+    if (hh, ha) != (EXPECTED_HOST_HOME, EXPECTED_HOST_AWAY):
+        raise ValueError(
+            f"TA1: host flags (home={hh}, away={ha}) != expected "
+            f"({EXPECTED_HOST_HOME}, {EXPECTED_HOST_AWAY}) — check etl/venues.py"
+        )
+
 
 def run(dry_run: bool = False, today: date | None = None) -> list[dict]:
     src = FootballDataFixtureSource()
@@ -102,9 +118,14 @@ def run(dry_run: bool = False, today: date | None = None) -> list[dict]:
         rows.append(_match_row(f, home_id, away_id))
 
     validate(fixtures, rows)
+    n_host = sum(1 for r in rows if r["is_host_home"] or r["is_host_away"])
+    no_venue = sum(1 for r, f in zip(rows, [f for f in fixtures if _has_teams(f)])
+                   if not f.venue and not (r["is_host_home"] or r["is_host_away"]))
     print(
         f"Fixtures ingest: {len(rows)} matches resolved "
-        f"({skipped} skipped — knockout teams not yet drawn)."
+        f"({skipped} skipped — knockout teams not yet drawn); "
+        f"{n_host} host-venue matches flagged; "
+        f"{no_venue} non-host matches without venue (neutral assumed — warn, P6 TA1)."
     )
 
     if dry_run:

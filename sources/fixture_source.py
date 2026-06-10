@@ -55,6 +55,7 @@ class Fixture:
     away_name: str | None
     kickoff_utc: str                # ISO-8601 UTC string
     status: str                     # internal: scheduled|live|final
+    venue: str | None = None        # fd venue string (None pre-tournament — verified 0/104)
 
 
 def _group_letter(group: str | None) -> str | None:
@@ -107,6 +108,7 @@ class FootballDataFixtureSource:
                     away_name=away.get("name"),
                     kickoff_utc=m["utcDate"],
                     status=STATUS_MAP.get(m["status"], "scheduled"),
+                    venue=m.get("venue"),
                 )
             )
         return out

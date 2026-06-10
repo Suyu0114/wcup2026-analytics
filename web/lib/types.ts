@@ -77,22 +77,42 @@ export interface GroupsResponse {
   unavailable: boolean;
 }
 
+// P6 §3.5: latest calibration_runs row; kelly_unlocked is judged SERVER-side.
+export interface CalibrationStatus {
+  model_version: string;
+  run_at: string;
+  n_settled: number;
+  model_brier: number | null;
+  market_brier: number | null;
+  kelly_unlocked: boolean;
+}
+
+export interface ModelTotalsGridEntry {
+  point: number;
+  p_over: number;
+  p_under: number;
+  p_push: number;
+}
+
 export interface ValueMarketResponse {
   match_id: string;
   market: 'h2h' | 'totals';
   outcome: string;
-  market_available: boolean; // false → no odds; frontend shows model only, no value (§6.1)
+  market_available: boolean; // false → no odds; no EV in ANY mode (P6 §1.6)
   pinnacle_main_point: number | null; // totals only (P3 §2 main line)
-  pinnacle_novig: number | null; // de-vig prob for `outcome`; value path consumes ONLY this
+  pinnacle_novig: number | null; // de-vig prob for `outcome`; market mode consumes ONLY this
   is_quarter_line: boolean | null;
   best_available: BookPrice | null; // best price on the SAME line (TV7)
   line_shopping: BookPrice[];
-  model_layer: {
+  // --- model side (P6 §5) — consumed only when the user opts into model mode ---
+  model_h2h: {
     model_version: string;
-    point: number;
-    p_over: number;
-    p_under: number;
-  } | null; // experimental, isolated from value (P3 §5.4 / TV5)
+    p_home: number;
+    p_draw: number;
+    p_away: number;
+  } | null;
+  model_totals_grid: ModelTotalsGridEntry[] | null; // 1.5–4.5 grid (replaces model_layer)
+  calibration: CalibrationStatus | null; // null → treat as locked
   freshness: Freshness | null;
 }
 

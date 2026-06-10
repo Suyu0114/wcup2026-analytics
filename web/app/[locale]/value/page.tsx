@@ -1,14 +1,22 @@
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { getMatches } from '@/lib/data';
 import { displayTeamName } from '@/lib/teamName';
+import { divergenceList } from '@/lib/divergence';
 import type { Locale } from '@/lib/routing';
-import ValueCalculator, { type MatchOption } from '@/components/ValueCalculator';
+import ValueCalculator, { type CalculatorDefaults, type MatchOption } from '@/components/ValueCalculator';
+import DivergenceList from '@/components/DivergenceList';
 import EmptyState from '@/components/EmptyState';
 
-export const revalidate = 1800;
-
-export default async function ValuePage({ params }: { params: Promise<{ locale: string }> }) {
+// Reading searchParams (screener prefill, P6 §3.7) makes this page dynamic.
+export default async function ValuePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ locale: string }>;
+  searchParams: Promise<{ match?: string; market?: string; outcome?: string }>;
+}) {
   const { locale } = await params;
+  const sp = await searchParams;
   setRequestLocale(locale);
   const t = await getTranslations({ locale });
   const { matches } = await getMatches();
@@ -20,6 +28,15 @@ export default async function ValuePage({ params }: { params: Promise<{ locale: 
     return { id: m.match_id, label: `${home} vs ${away}${grp}` };
   });
 
+  // prefill from the divergence screener links (P6 §3.7); invalid values are ignored
+  const defaults: CalculatorDefaults = {
+    matchId: sp.match,
+    market: sp.market === 'totals' ? 'totals' : sp.market === 'h2h' ? 'h2h' : undefined,
+    outcome: sp.outcome,
+  };
+
+  const divergence = divergenceList(matches);
+
   return (
     <div className="space-y-6">
       <header>
@@ -27,10 +44,12 @@ export default async function ValuePage({ params }: { params: Promise<{ locale: 
         <p className="mt-1 text-slate-600">{t('value.subtitle')}</p>
       </header>
 
+      <DivergenceList rows={divergence} locale={locale as Locale} />
+
       {options.length === 0 ? (
         <EmptyState message={t('common.dataUnavailable')} />
       ) : (
-        <ValueCalculator matchOptions={options} />
+        <ValueCalculator matchOptions={options} defaults={defaults} />
       )}
     </div>
   );

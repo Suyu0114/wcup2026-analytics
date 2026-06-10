@@ -53,10 +53,16 @@ export function kellyFraction(
   return Math.max(0.0, fraction * fStar); // negative EV -> 0
 }
 
-// --- totals line helpers (P3 §5.2) ---
+// --- totals line helpers (P3 §5.2; approximate rule amended by P6 §3.4 / TB7) ---
 export function isQuarterLine(point: number): boolean {
-  // 2.25 / 2.75 -> true (half-push settlement -> EV/Kelly approximate)
+  // 2.25 / 2.75 -> true (half-stake split settlement)
   return (2.0 * point) % 1.0 !== 0.0;
+}
+
+export function isHalfLine(point: number): boolean {
+  // 2.5 / 3.5 -> true. Only half lines carry no push risk — in MARKET mode they
+  // are the only exact EV (integer lines push, quarters split; P6 TB7).
+  return (2.0 * point) % 2.0 === 1.0;
 }
 
 export function totalsLineMatches(userPoint: number, pinnacleMainPoint: number): boolean {
@@ -129,6 +135,86 @@ export function evaluate(
   out.ev = e;
   out.value = e > 0.0;
   out.kelly_fraction = kellyFraction(pNovig, d, fraction);
-  out.approximate = point !== null && isQuarterLine(point);
+  // P6 TB7: two-way de-vig carries no push information, so only half lines are
+  // exact — integer lines were always approximate too, now honestly flagged.
+  out.approximate = point !== null && !isHalfLine(point);
   return out;
+}
+
+// --- push-aware arithmetic for the MODEL totals mode (P6 §3.4, port of value.py) ---
+// The model's score matrix knows P(total == L) exactly, so integer and quarter
+// lines get exact EV here (unlike market mode).
+
+export function evWithPush(pWin: number, pPush: number, decimalOdds: number): number {
+  // Exact single-line EV with push risk: win -> d-1, push -> 0, lose -> -1.
+  return pWin * decimalOdds - (1.0 - pPush);
+}
+
+export function kellyWithPush(
+  pWin: number,
+  pPush: number,
+  decimalOdds: number,
+  fraction: number = KELLY_FRACTION_DEFAULT,
+): number {
+  // Kelly with a push outcome reduces to binary Kelly on the push-conditioned
+  // probability — no extra scaling (P6 §3.4).
+  const pLose = Math.max(1.0 - pWin - pPush, 0.0);
+  if (pWin + pLose <= 0.0) return 0.0;
+  const pEff = pWin / (pWin + pLose);
+  const fStar = (decimalOdds * pEff - 1.0) / (decimalOdds - 1.0);
+  return Math.max(0.0, fraction * fStar);
+}
+
+export function quarterComponents(point: number): [number, number] {
+  // Quarter line = half stake on each neighbouring line: x.25 -> (x.0, x.5).
+  if (!isQuarterLine(point)) throw new Error(`not a quarter line: ${point}`);
+  return [point - 0.25, point + 0.25];
+}
+
+export interface ModelTotalsResult {
+  decimal_odds: number;
+  ev: number;
+  value: boolean;
+  kelly_fraction: number;
+  kelly_approximate: boolean;
+}
+
+export function evaluateModelTotals(
+  pWin: number,
+  pPush: number,
+  userValue: number,
+  userFormat: string = 'decimal',
+  fraction: number = KELLY_FRACTION_DEFAULT,
+): ModelTotalsResult {
+  const d = toDecimal(userValue, userFormat);
+  const e = evWithPush(pWin, pPush, d);
+  return {
+    decimal_odds: d,
+    ev: e,
+    value: e > 0.0,
+    kelly_fraction: kellyWithPush(pWin, pPush, d, fraction),
+    kelly_approximate: false,
+  };
+}
+
+export function evaluateModelTotalsQuarter(
+  lo: [number, number],
+  hi: [number, number],
+  userValue: number,
+  userFormat: string = 'decimal',
+  fraction: number = KELLY_FRACTION_DEFAULT,
+): ModelTotalsResult {
+  // lo/hi = (pWin, pPush) at the two component lines. EV exact (half stake each);
+  // Kelly = equal-weight average of component f* — approximate, flagged (P6 TB7).
+  const d = toDecimal(userValue, userFormat);
+  const e = 0.5 * evWithPush(lo[0], lo[1], d) + 0.5 * evWithPush(hi[0], hi[1], d);
+  const k =
+    0.5 * kellyWithPush(lo[0], lo[1], d, fraction) + 0.5 * kellyWithPush(hi[0], hi[1], d, fraction);
+  return {
+    decimal_odds: d,
+    ev: e,
+    value: e > 0.0,
+    kelly_fraction: k,
+    kelly_approximate: true,
+  };
 }

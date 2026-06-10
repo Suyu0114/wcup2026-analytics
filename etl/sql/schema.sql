@@ -30,6 +30,7 @@ create table matches (
   kickoff_utc  timestamptz not null,
   venue        text,
   is_host_home boolean not null default false,-- home_team 是地主國且在本國比賽時 = true（主場優勢開關）
+  is_host_away boolean not null default false,-- P6 A1：away_team 是地主國且在本國比賽（fd 第三輪把地主列客隊）
   status       text not null default 'scheduled', -- 'scheduled' | 'live' | 'final'
   home_goals   int,
   away_goals   int
@@ -86,16 +87,35 @@ join matches m using (match_id)
 where s.captured_at <= m.kickoff_utc
 order by s.match_id, s.bookmaker, s.market, s.outcome, coalesce(s.point, -1), s.captured_at desc;
 
--- 3.3 模型在「Pinnacle 實際 totals 線」的機率（衍生；由 lambda_home/away 重算，非固定 p_over_2_5）
+-- 3.3 模型 totals 機率（衍生；由 lambda_home/away 重算，非固定 p_over_2_5）
+--     P6 §3.4 起為「線格」：1.5–4.5（0.25 步距）+ Pinnacle 主線；含 push 欄。
 create table model_total_lines (
   match_id      text not null references matches(match_id),
-  point         numeric not null,              -- = Pinnacle 該場當前主線
-  model_version text not null,                 -- = 'dc-v1.0'
+  point         numeric not null,              -- 線格 1.5–4.5 + Pinnacle 主線
+  model_version text not null,                 -- 如 'dc-v1.1'
   model_p_over  numeric not null,
   model_p_under numeric not null,
+  model_p_push  numeric not null default 0,    -- P(total == point)；整數線才非 0（P6 §3.4）
   computed_at   timestamptz not null default now(),
   primary key (match_id, point, model_version)
 );
+
+-- =====================================================================
+-- P6 (docs/P6-spec.md §4): calibration runs（Kelly 解鎖閘 + 模型模式校正狀態列）
+-- =====================================================================
+
+-- 4.2 校正結果落表：etl.calibrate 每次執行 append 一列（含 n=0，前端顯示進度 0/30）
+create table calibration_runs (
+  run_id         bigserial primary key,
+  run_at         timestamptz not null default now(),
+  model_version  text not null,
+  n_settled      int not null,
+  model_brier    numeric,           -- n=0 時 null
+  model_logloss  numeric,
+  market_brier   numeric,
+  market_logloss numeric
+);
+create index calibration_runs_lookup on calibration_runs (model_version, run_at desc);
 
 -- =====================================================================
 -- P2 (Feature 4: Monte Carlo group-stage advancement simulation).
