@@ -14,7 +14,7 @@ export default async function MatchesPage({ params }: { params: Promise<{ locale
   setRequestLocale(locale);
   const t = await getTranslations({ locale });
   const { matches, unavailable } = await getMatches();
-  const tz = siteTz();
+  const tz = siteTz(locale);
 
   // graceful zh-name fallback banner (spec §3.2 / §6.6)
   const teams = matches.flatMap((m) => [m.home, m.away]);

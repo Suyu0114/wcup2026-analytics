@@ -8,7 +8,10 @@ export function formatDecimal(d: number, digits = 2): string {
   return d.toFixed(digits);
 }
 
-export function siteTz(): string {
+export function siteTz(locale?: string): string {
+  if (locale === 'en') {
+    return 'America/Toronto';
+  }
   return process.env.SITE_TZ || 'Asia/Taipei';
 }
 

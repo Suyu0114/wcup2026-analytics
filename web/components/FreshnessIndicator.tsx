@@ -9,7 +9,7 @@ export default function FreshnessIndicator({ freshness }: { freshness: Freshness
   const when = new Intl.DateTimeFormat(locale, {
     dateStyle: 'short',
     timeStyle: 'short',
-    timeZone: siteTz(),
+    timeZone: siteTz(locale),
   }).format(new Date(freshness.captured_at));
   return (
     <span className={`text-xs ${freshness.stale ? 'text-amber-700' : 'text-slate-400'}`}>
