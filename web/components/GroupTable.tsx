@@ -4,6 +4,7 @@ import type { Locale } from '@/lib/routing';
 import { displayTeamName } from '@/lib/teamName';
 import { formatPercent } from '@/lib/format';
 import ProbBar from './ProbBar';
+import Flag from './Flag';
 
 export default function GroupTable({
   group,
@@ -24,7 +25,10 @@ export default function GroupTable({
         {teams.map((team) => (
           <div key={team.team_id} className="space-y-1">
             <div className="flex items-center justify-between text-sm">
-              <span className="font-medium text-slate-800">{displayTeamName(team, locale)}</span>
+              <span className="flex items-center gap-1.5 font-medium text-slate-800">
+                <Flag teamId={team.team_id} />
+                {displayTeamName(team, locale)}
+              </span>
             </div>
             <ProbBar label={t('groups.pAdvance')} value={team.p_advance} tone="neutral" />
             <div className="flex gap-x-4 pl-16 text-xs text-slate-500">

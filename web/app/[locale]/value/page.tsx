@@ -2,7 +2,7 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { getMatches } from '@/lib/data';
 import { displayTeamName } from '@/lib/teamName';
 import { divergenceList } from '@/lib/divergence';
-import type { Locale } from '@/lib/routing';
+import { Link, type Locale } from '@/lib/routing';
 import ValueCalculator, { type CalculatorDefaults, type MatchOption } from '@/components/ValueCalculator';
 import DivergenceList from '@/components/DivergenceList';
 import EmptyState from '@/components/EmptyState';
@@ -42,6 +42,12 @@ export default async function ValuePage({
       <header>
         <h1 className="text-2xl font-bold text-slate-900">{t('value.title')}</h1>
         <p className="mt-1 text-slate-600">{t('value.subtitle')}</p>
+        <Link
+          href="/guide"
+          className="mt-2 inline-block rounded bg-sky-50 px-3 py-1.5 text-sm text-sky-800 hover:bg-sky-100"
+        >
+          {t('value.guidePrompt')} →
+        </Link>
       </header>
 
       <DivergenceList rows={divergence} locale={locale as Locale} />

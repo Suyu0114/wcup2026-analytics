@@ -6,6 +6,7 @@ import { notFound } from 'next/navigation';
 import { routing, type Locale } from '@/lib/routing';
 import SiteHeader from '@/components/SiteHeader';
 import AttributionFooter from '@/components/AttributionFooter';
+import 'flag-icons/css/flag-icons.min.css';
 import '../globals.css';
 
 export function generateStaticParams() {

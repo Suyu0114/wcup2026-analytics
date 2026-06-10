@@ -11,7 +11,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
   setRequestLocale(locale);
   const t = await getTranslations({ locale });
   const fresh = await getFreshnessSummary();
-  const tz = siteTz();
+  const tz = siteTz(locale);
 
   const cards = [
     { href: '/matches' as const, title: t('home.cardMatchesTitle'), desc: t('home.cardMatchesDesc') },

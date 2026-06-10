@@ -1,13 +1,56 @@
 /**
- * Model-vs-market divergence screener (P6 §3.7 / TB10). Pure; server component
- * feeds it getMatches() output. Display-only: a big divergence usually means the
- * model is wrong, not the market (disclaimer rendered alongside).
+ * Model-vs-market divergence — two display-only views over the same comparison:
+ *
+ * 1. computeDivergence (badge, /matches): argmax-flip — the model's single most-likely 1X2
+ *    outcome differs from the market's (Pinnacle de-vig). Same-direction disagreement is NOT
+ *    flagged. Computed server-side (like upset); the frontend only displays the badge.
+ * 2. divergenceList (screener, /value top — P6 §3.7 / TB10): per upcoming match, the outcome
+ *    with the largest |model − market| gap, top-N sorted by that gap; feeds the calculator
+ *    prefill links.
+ *
+ * Both are "the two views disagree" signals, NEVER value signals. A divergence is far more
+ * often a model limitation than a market mispricing (P6-spec §2.3); a disclaimer is rendered
+ * alongside, and nothing here feeds the EV/value path (trap #7 / P5 risk #1). No market
+ * (no odds posted) → nothing to diverge from → null / skipped.
+ *
+ * Pure functions (kept testable); both share the Outcome type so badge and screener never drift.
  */
 import type { MatchView } from './types';
 
+export type Outcome = 'home' | 'draw' | 'away';
+
+export interface Triple {
+  home: number;
+  draw: number;
+  away: number;
+}
+
+export interface DivergenceResult {
+  flag: boolean;
+  modelPick: Outcome;
+  marketPick: Outcome;
+}
+
+const OUTCOMES = ['home', 'draw', 'away'] as const;
+
+// Most-likely outcome. Deterministic tie-break order: home > draw > away (ties are
+// vanishingly rare with real de-vig floats; fixed order keeps the result stable).
+export function argmaxOutcome(t: Triple): Outcome {
+  if (t.home >= t.draw && t.home >= t.away) return 'home';
+  if (t.draw >= t.away) return 'draw';
+  return 'away';
+}
+
+export function computeDivergence(model: Triple, market: Triple | null): DivergenceResult | null {
+  if (!market) return null;
+  const modelPick = argmaxOutcome(model);
+  const marketPick = argmaxOutcome(market);
+  return { flag: modelPick !== marketPick, modelPick, marketPick };
+}
+
 export interface DivergenceRow {
   match_id: string;
-  outcome: 'home' | 'draw' | 'away';
+  outcome: Outcome;
   model_p: number;
   market_p: number;
   diff: number; // model − market (signed)
@@ -15,8 +58,6 @@ export interface DivergenceRow {
   home: MatchView['home'];
   away: MatchView['away'];
 }
-
-const OUTCOMES = ['home', 'draw', 'away'] as const;
 
 export function divergenceList(matches: MatchView[], top = 10): DivergenceRow[] {
   const rows: DivergenceRow[] = [];

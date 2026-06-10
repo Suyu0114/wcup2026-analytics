@@ -3,7 +3,7 @@ import { getMatches } from '@/lib/data';
 import { anyZhNameMissing } from '@/lib/teamName';
 import { siteTz } from '@/lib/format';
 import type { Locale } from '@/lib/routing';
-import MatchCard from '@/components/MatchCard';
+import MatchFilters from '@/components/MatchFilters';
 import EmptyState from '@/components/EmptyState';
 import KnockoutTbd from '@/components/KnockoutTbd';
 
@@ -14,7 +14,7 @@ export default async function MatchesPage({ params }: { params: Promise<{ locale
   setRequestLocale(locale);
   const t = await getTranslations({ locale });
   const { matches, unavailable } = await getMatches();
-  const tz = siteTz();
+  const tz = siteTz(locale);
 
   // graceful zh-name fallback banner (spec §3.2 / §6.6)
   const teams = matches.flatMap((m) => [m.home, m.away]);
@@ -36,11 +36,7 @@ export default async function MatchesPage({ params }: { params: Promise<{ locale
       ) : matches.length === 0 ? (
         <EmptyState message={t('matches.predictionsEmpty')} />
       ) : (
-        <div className="space-y-4">
-          {matches.map((m) => (
-            <MatchCard key={m.match_id} match={m} locale={locale as Locale} tz={tz} />
-          ))}
-        </div>
+        <MatchFilters matches={matches} locale={locale as Locale} tz={tz} />
       )}
 
       {/* Knockout TBD placeholder (trap #10 / §6.4 / TU4) — graceful, no fabricated matchups */}

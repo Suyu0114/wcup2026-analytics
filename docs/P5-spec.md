@@ -95,9 +95,10 @@ displayTeamName(team, locale):
     else:                 return team.name_en
 ```
 
-- **zh-TW 用 `teams.name_zh` 策展查表**（西班牙/阿根廷/法國…），**不得**對 `name_en` 做機器翻譯（P0-P1 §3 / trap：國名機翻會錯）。
+- **zh-TW 用 `teams.name_zh` 策展查表**（西班牙/阿根廷/法國…），**不得**對 `name_en` 做機器翻譯（P0-P1 §3 / trap：國名機翻會錯）。**已實作**：48 隊繁中由 [etl/seed_team_names_zh.py](../etl/seed_team_names_zh.py) 策展種子（idempotent、fail-loud 覆蓋檢查）。
 - `name_zh` 為 null → fallback `name_en` 並在 UI 標記（待人工補；**不靜默假裝有中文**）。TU1 驗 fallback 不 crash。
 - 隊碼 `team_id`（兩碼 country_code）是內部 key，**不直接給使用者看**。
+- **國旗（視覺輔助）**：`flag-icons` SVG（**非 emoji**——Windows 不渲染 emoji 國旗會變兩碼字）。`team_id → flag code` 經 [web/lib/flag.ts](../web/lib/flag.ts)：**team_id ≠ 全等 ISO-3166**，實測 48 隊只 `EN→gb-eng`、`SQ→gb-sct` 兩 override，其餘 `lowercase`。國旗 `aria-hidden`（隊名才是語意內容）。用於 [MatchCard](../web/components/MatchCard.tsx) / [GroupTable](../web/components/GroupTable.tsx)；`<select>` 無法放 SVG → value 頁下拉維持純文字。
 
 ### 3.3 enum / 標籤字典化
 

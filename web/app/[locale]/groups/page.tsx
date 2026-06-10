@@ -12,7 +12,7 @@ export default async function GroupsPage({ params }: { params: Promise<{ locale:
   setRequestLocale(locale);
   const t = await getTranslations({ locale });
   const data = await getGroups();
-  const tz = siteTz();
+  const tz = siteTz(locale);
   const groupKeys = Object.keys(data.groups).sort();
 
   return (

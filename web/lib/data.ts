@@ -2,6 +2,7 @@ import 'server-only';
 import { getSupabase } from './supabaseServer';
 import { novig } from './devig';
 import { computeUpset } from './upset';
+import { computeDivergence } from './divergence';
 import { isQuarterLine } from './value';
 import {
   MODEL_VERSION,
@@ -191,6 +192,13 @@ export async function getMatches(): Promise<MatchesResponse> {
             }),
           }
         : null;
+      const market = buildMatchMarket(oddsByMatch.get(m.match_id) ?? []);
+      const divergence = model
+        ? computeDivergence(
+            { home: model.p_home, draw: model.p_draw, away: model.p_away },
+            market?.pinnacle_novig ?? null,
+          )
+        : null;
       views.push({
         match_id: m.match_id,
         stage: m.stage,
@@ -200,7 +208,8 @@ export async function getMatches(): Promise<MatchesResponse> {
         home: { team_id: home.team_id, name_en: home.name_en, name_zh: home.name_zh, elo: Number(home.elo) },
         away: { team_id: away.team_id, name_en: away.name_en, name_zh: away.name_zh, elo: Number(away.elo) },
         model,
-        market: buildMatchMarket(oddsByMatch.get(m.match_id) ?? []),
+        market,
+        divergence,
       });
     }
     views.sort((a, b) => a.kickoff_utc.localeCompare(b.kickoff_utc));
