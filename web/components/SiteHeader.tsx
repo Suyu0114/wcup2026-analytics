@@ -20,6 +20,9 @@ export default function SiteHeader() {
           <Link href="/value" className="text-slate-600 hover:text-slate-900">
             {t('nav.value')}
           </Link>
+          <Link href="/guide" className="text-slate-600 hover:text-slate-900">
+            {t('nav.guide')}
+          </Link>
           <LanguageSwitcher />
         </nav>
       </div>

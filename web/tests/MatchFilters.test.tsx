@@ -32,6 +32,7 @@ function makeMatch(p: {
       upset: { flag: p.upset, weaker: p.upset ? `${p.id}A` : null },
     },
     market: null,
+    divergence: null,
   };
 }
 

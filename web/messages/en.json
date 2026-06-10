@@ -22,7 +22,8 @@
     "home": "Home",
     "matches": "Predictions",
     "groups": "Advancement",
-    "value": "EV Calculator"
+    "value": "EV Calculator",
+    "guide": "Guide"
   },
   "home": {
     "heroTitle": "World Cup 2026 Predictions & Analytics",
@@ -94,7 +95,54 @@
     "pinnacleNovig": "Pinnacle de-vig probability",
     "noMarketForMatch": "No market odds for this match yet; value cannot be computed.",
     "errInvalidOdds": "Converted decimal odds must be greater than 1 — please check your input.",
-    "compute": "Compute"
+    "compute": "Compute",
+    "guidePrompt": "New to these terms? Read the guide"
+  },
+  "guide": {
+    "title": "Guide",
+    "subtitle": "The ideas behind the EV calculator, in plain language — from the basics up.",
+    "model": {
+      "title": "How does our prediction model work?",
+      "summary": "Elo ratings + Dixon–Coles",
+      "points": [
+        "Elo ratings: like a chess points system — beat a strong team and you gain more, lose to a weak one and you drop more. The data is from eloratings.net, tracking each national team's results over time. The gap between two teams' Elo is our measure of relative strength.",
+        "Dixon–Coles model: goals in football behave like rare random events, modelled with the statistical Poisson distribution. Each team's expected goals comes from the Elo gap, then Dixon–Coles fixes two weak spots: (1) the probabilities of low scores (0:0, 1:1) become more accurate; (2) recent matches count for more than ones from years ago.",
+        "The model builds a full scoreline-probability grid for each match (how likely 1:0, 2:1, and so on), then sums those into 1X2 (home/draw/away), over/under, and more.",
+        "Advancement odds: the same model drives a Monte Carlo simulation — the whole group stage is replayed tens of thousands of times, ranked by FIFA rules each run, counting how often each team advances across 10,000 runs.",
+        "⚠️ Experimental: the model is experimental, and closing market odds are usually more accurate. We show the model alongside the market for comparison only — not as betting advice."
+      ]
+    },
+    "oddsFormats": {
+      "title": "Odds formats: what do the numbers mean?",
+      "summary": "Decimal / American / Hong Kong",
+      "points": [
+        "Decimal: what the Taiwan Sports Lottery uses. Payout = stake × odds (your stake included). E.g. odds 2.50, stake 100 → you get 250 back (150 profit). Implied probability = 1 ÷ odds (2.50 → 40%).",
+        "American (Moneyline): common in Canada and the US. A positive number (e.g. +200) is how much you net on a 100 stake; a negative number (e.g. −150) is how much you must stake to net 100.",
+        "Hong Kong: = decimal − 1 (the net-profit multiple only).",
+        "The widget below converts any one format into the others plus the implied probability. The EV calculator accepts all five formats."
+      ],
+      "converterTitle": "Odds format converter",
+      "impliedLabel": "Implied probability"
+    },
+    "vig": {
+      "title": "What is vig (the bookmaker's cut)? Why do the odds add up to over 100%?",
+      "summary": "The bookmaker's built-in margin",
+      "points": [
+        "A bookmaker's odds aren't the true probability — they shade every outcome a little to guarantee a profit. That shading is the vig (also called juice or the margin).",
+        "Add up the implied probability of every outcome and it exceeds 100%; the excess is the bookmaker's margin. The Taiwan Sports Lottery's vig is far higher than Pinnacle's (a book known for a thin margin).",
+        "De-vig means scaling those over-100% implied probabilities back to 100%, giving the fair probability after removing the margin.",
+        "How the EV calculator uses this: it de-vigs Pinnacle to get a near-true fair probability as the benchmark, then compares your book's odds (e.g. the Taiwan Sports Lottery) against that fair probability to judge whether your price is good."
+      ],
+      "exampleTitle": "Worked example (Taiwan Sports Lottery prices, Mexico vs South Africa)",
+      "example": [
+        "Home 1.28 / Draw 3.35 / Away 5.80",
+        "Implied: 78.1% + 29.9% + 17.2% = 125.2%",
+        "The extra 25.2% is this book's vig (lottery margins run high). The fair probability only appears after de-vigging."
+      ]
+    },
+    "moreTitle": "More: EV, bankroll, using the calculator",
+    "moreBody": "Expected value (EV), bankroll management, Kelly staking, and a step-by-step walkthrough of the EV calculator are being written alongside the calculator's redesign and will land soon.",
+    "moreCta": "Head to the EV calculator"
   },
   "market": {
     "h2h": "1X2",
@@ -127,13 +175,17 @@
   "oddsfmt": {
     "decimal": "Decimal",
     "hongkong": "Hong Kong",
-    "american": "American",
+    "american": "American (Moneyline)",
     "indonesian": "Indonesian",
     "malaysian": "Malaysian"
   },
   "upset": {
     "badge": "Upset risk",
     "tooltip": "Large Elo gap, yet the underdog's not-lose probability is still meaningful."
+  },
+  "divergence": {
+    "badge": "Diverges from market",
+    "tooltip": "The model's most-likely outcome differs from the market's. A divergence doesn't mean the market is wrong — more often it's a model limitation; for comparison only, not betting advice."
   },
   "footer": {
     "attribution": "Elo data from eloratings.net, released under CC BY-SA 4.0.",
