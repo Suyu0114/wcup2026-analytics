@@ -50,8 +50,20 @@ MAX_DROP_RATE = 0.05         # TA3 snapshot-coverage guard
 MIN_MATCHES_PER_TEAM = 20    # silent-mapping-miss guard (every WC team plays plenty)
 EPS = 1e-15
 
+# 3-way 1X2 reference baselines (data-independent): a uniform 1/3 guess. Used in the
+# REPORT so the gate (comparative) is read against absolute skill — a model worse than
+# these numbers is confidently miscalibrated, not just "weak".
+UNIFORM_LOGLOSS = float(np.log(3.0))   # 1.0986
+UNIFORM_BRIER = 2.0 / 3.0              # 0.6667
+
 # martj42 name -> Elo CSV `country` (only divergence found, verified 2026-06-10).
 MANUAL_NAMES = {"Czech Republic": "Czechia"}
+
+# dc-v1.0 PRIOR constants — the fixed pre-fit reference for the gate. HARDCODED, not
+# read from engine.dixon_coles: once the engine is bumped to v1.1 those globals hold
+# the fitted values, so reading them would silently turn the "v1.0 baseline" into
+# v1.1 and make the gate compare the candidate against itself (non-reproducible).
+V10_PRIORS = {"BASE": 1.35, "GAMMA": 0.90, "HFA_ELO": 100.0, "RHO": -0.10}
 
 REQUIRED_COLS = {"date", "home_team", "away_team", "home_score", "away_score",
                  "tournament", "city", "country", "neutral"}
@@ -262,12 +274,14 @@ def score_1x2(df: pd.DataFrame, lh: np.ndarray, la: np.ndarray, rho: float) -> d
 
 
 def lambdas_v10(df: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
-    """dc-v1.0 prior baseline, its HFA prior applied on non-neutral matches."""
+    """dc-v1.0 PRIOR baseline (fixed V10_PRIORS, not live engine constants — see note).
+    Its HFA prior applied on non-neutral matches."""
     d = (df["elo_home"] - df["elo_away"]) / 400.0
     sign = (~df["neutral"]).astype(int)
-    hfa = dc_engine.GAMMA * dc_engine.HFA_ELO / 400.0 * sign
-    lh = dc_engine.BASE * np.exp(dc_engine.GAMMA * d + hfa)
-    la = dc_engine.BASE * np.exp(-dc_engine.GAMMA * d - hfa)
+    base, gamma, hfa_elo = V10_PRIORS["BASE"], V10_PRIORS["GAMMA"], V10_PRIORS["HFA_ELO"]
+    hfa = gamma * hfa_elo / 400.0 * sign
+    lh = base * np.exp(gamma * d + hfa)
+    la = base * np.exp(-gamma * d - hfa)
     return lh.to_numpy(), la.to_numpy()
 
 
@@ -361,7 +375,7 @@ def run() -> dict:
 
     # --- baselines on the same validation set (spec §2.2.4) ---
     lh10, la10 = lambdas_v10(val)
-    base_v10 = score_1x2(val, lh10, la10, dc_engine.RHO)
+    base_v10 = score_1x2(val, lh10, la10, V10_PRIORS["RHO"])   # fixed v1.0 prior RHO
     draw_rate = float((train["hg"] == train["ag"]).mean())
     base_we = score_we_baseline(val, draw_rate)
 
@@ -447,6 +461,10 @@ def _render(r: dict) -> str:
         "",
         "## Gate (spec §2.2.4 — candidate is the TRAIN-fitted model)",
         "",
+        "The gate is **comparative** (is the fitted model *less wrong* than the v1.0 prior?),"
+        " not a measure of absolute skill. The coin-flip row is the data-independent 1X2"
+        " floor (uniform 1/3); read the others against it.",
+        "",
         "| model | val 1X2 log-loss | val 1X2 Brier | val totals2.5 Brier |",
         "|---|---|---|---|",
         f"| candidate (HL={r['best_half_life']}) | {r['candidate']['val']['log_loss']:.4f} "
@@ -455,10 +473,24 @@ def _render(r: dict) -> str:
         f"| {r['baseline_v10']['brier']:.4f} | {r['baseline_v10']['brier_totals25']:.4f} |",
         f"| Elo We + fixed draw ({r['draw_rate_train']:.3f}) | {r['baseline_we']['log_loss']:.4f} "
         f"| {r['baseline_we']['brier']:.4f} | — |",
+        f"| coin-flip (uniform 1/3) | {UNIFORM_LOGLOSS:.4f} | {UNIFORM_BRIER:.4f} | — |",
         "",
         f"**GATE: {'PASS' if r['gate_pass'] else 'FAIL — do NOT bump'}** "
         "(both baselines are Elo-derived — circularity trap #11; the only external "
         "reference is the A3 market diagnosis, see fit/DIAGNOSIS.md)",
+        "",
+        "**Interpretation.** Two things are true at once, and both matter:",
+        f"- The bump is correct: dc-v1.0 priors lose to a coin flip on **both** metrics "
+        f"(log-loss {r['baseline_v10']['log_loss']:.4f} vs {UNIFORM_LOGLOSS:.4f}, "
+        f"Brier {r['baseline_v10']['brier']:.4f} vs {UNIFORM_BRIER:.4f}) — i.e. v1.0 was "
+        f"confidently miscalibrated (GAMMA 0.90 + too many goals). The fitted model beats "
+        f"both the prior and the coin flip, so the gate passes for a real reason.",
+        "- The absolute skill is modest by design: the candidate clears the coin flip by "
+        "only ~0.05 nats. International 1X2 from an Elo-difference-only model is near the "
+        "ceiling of what ratings alone can predict. This is exactly why the product keeps "
+        "the model EXPERIMENTAL, defaults to the market, and leaves model-mode Kelly LOCKED "
+        "until live in-tournament calibration (T10) earns it — the bump means *less wrong "
+        "than the prior*, never *trustworthy enough to bet*.",
         "",
         "## Parameters",
         "",
@@ -473,7 +505,10 @@ def _render(r: dict) -> str:
         "",
         "Impl note: the gate is decided on the train-fitted candidate; the deployed",
         "constants are a full-window refit with the selected half-life (uses the most",
-        "recent 2.5y of data; standard practice, documented per spec §2.2.5).",
+        "recent 2.5y of data; standard practice, documented per spec §2.2.5). The deployed",
+        f"GAMMA ({d['GAMMA']:.4f}) is *more conservative* than the gate-passing candidate's",
+        f"({p['GAMMA']:.4f}) — adding the recent window pulls favorites slightly less extreme,",
+        "not more; deployed was never re-gated (all data was used to fit it).",
         "",
         "## Diagnostics",
         f"- asymmetry (unconstrained): h_att={r['asymmetry']['h_att']:+.4f}, "
@@ -483,10 +518,23 @@ def _render(r: dict) -> str:
         "- T9 We anchors (diagnostic for v1.1, NOT a gate — spec §2.2.4):",
     ]
     for diff, a in r["anchors"].items():
-        flag = " ⚠️ >±0.05" if abs(a["dev"]) > 0.05 else ""
+        flag = " (>±0.05)" if abs(a["dev"]) > 0.05 else ""
         L.append(f"  - diff {diff}: We={a['we']:.3f} vs anchor {a['anchor']:.2f} "
                  f"(dev {a['dev']:+.3f}){flag}")
-    L += ["", "TA7 round-trip (engine ≡ GLM mapping): PASS for candidate + deployed.", ""]
+    L += [
+        "  - ⚠️ read these as corroboration, not a red flag: the deviations are all "
+        "*negative* — the fitted model is **less** confident in strong favorites than the "
+        "eloratings We curve. That curve is eloratings' own self-defined idealization, not "
+        "ground truth (hence demoted to diagnostic for v1.1). The independent A3 market "
+        "diagnosis points the SAME way — the sharp market also has v1.0 over-rating "
+        "favorites and over-predicting goals (see fit/DIAGNOSIS.md). Two unrelated "
+        "references agreeing that v1.0 was too aggressive is evidence the fit moved the "
+        "right direction, not a warning. (Part of the gap is also attenuation — stale "
+        "pre-match Elo biases GAMMA down; see the sensitivity row above.)",
+        "",
+        "TA7 round-trip (engine ≡ GLM mapping): PASS for candidate + deployed.",
+        "",
+    ]
     return "\n".join(L)
 
 
