@@ -146,7 +146,7 @@ def run(model_version: str = MODEL_VERSION) -> dict:
     names = db.fetch_matches_with_names()
     md = render(h2h, totals, names, model_version)
     DIAGNOSIS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    DIAGNOSIS_PATH.write_text(md)
+    DIAGNOSIS_PATH.write_text(md, encoding="utf-8")
     print(f"  1X2: n={h2h['n']}", end="")
     if h2h["n"]:
         ms = h2h["mean_signed"]
