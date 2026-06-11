@@ -12,14 +12,13 @@ import { verdictTier, per100, breakeven, type VerdictTier } from '@/lib/verdict'
 import { KELLY_UNLOCK_N } from '@/lib/constants';
 import { formatPercent, formatDecimal } from '@/lib/format';
 import type { ValueMarketResponse } from '@/lib/types';
-import OddsFormatSelector, { type OddsFormat } from './OddsFormatSelector';
+import OddsFormatSelector, { ODDS_PLACEHOLDER, type OddsFormat } from './OddsFormatSelector';
+import MatchPicker, { type MatchOption } from './MatchPicker';
 import ExperimentalTag from './ExperimentalTag';
+import InfoPopover from './InfoPopover';
 import ResponsibleGamblingFooter from './ResponsibleGamblingFooter';
 
-export interface MatchOption {
-  id: string;
-  label: string;
-}
+export type { MatchOption };
 
 export interface CalculatorDefaults {
   matchId?: string;
@@ -103,6 +102,20 @@ export default function ValueCalculator({
     return () => ctrl.abort();
   }, [matchId, market, outcome]);
 
+  // P6 §3.7: the divergence screener lives on THIS page, so clicking a row is a same-page
+  // navigation that does NOT remount the calculator — the useState initializers above only run
+  // on first mount and would leave the prefill stale. Re-apply it when the URL params change.
+  // Keyed solely on the prefill primitives, so it never overrides a manual selection.
+  useEffect(() => {
+    if (defaults?.matchId && matchOptions.some((m) => m.id === defaults.matchId)) {
+      setMatchId(defaults.matchId);
+    }
+    const m: Market = defaults?.market === 'totals' ? 'totals' : 'h2h';
+    setMarket(m);
+    setOutcome(defaults?.outcome && OUTCOMES[m].includes(defaults.outcome) ? defaults.outcome : OUTCOMES[m][0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaults?.matchId, defaults?.market, defaults?.outcome]);
+
   function changeMarket(m: Market) {
     setMarket(m);
     setOutcome(OUTCOMES[m][0]);
@@ -169,6 +182,15 @@ export default function ValueCalculator({
   const fair = selected ? fairProb(selected) : null;
   const currency = locale === 'zh-TW' ? 'TWD' : 'CAD';
 
+  // outcome dropdown shows WHICH team is home/away so users don't have to guess (req #2.2);
+  // falls back to the plain outcome label when team names aren't supplied.
+  const currentOption = matchOptions.find((m) => m.id === matchId) ?? null;
+  function outcomeLabel(o: string): string {
+    if (o === 'home' && currentOption?.home) return `${t('outcome.home')}（${currentOption.home.name}）`;
+    if (o === 'away' && currentOption?.away) return `${t('outcome.away')}（${currentOption.away.name}）`;
+    return t(`outcome.${o}`);
+  }
+
   return (
     <div className="space-y-6">
       {/* mode switch (TB1: market default; model = explicit, experimental) */}
@@ -199,21 +221,10 @@ export default function ValueCalculator({
 
       {/* inputs */}
       <div className="grid gap-4 rounded-lg border border-slate-200 bg-white p-4 sm:grid-cols-2">
-        <label className="flex flex-col gap-1 text-sm sm:col-span-2">
+        <div className="flex flex-col gap-1 text-sm sm:col-span-2">
           <span className="text-slate-600">{t('value.selectMatch')}</span>
-          <select
-            value={matchId}
-            onChange={(e) => setMatchId(e.target.value)}
-            className="rounded border border-slate-300 px-2 py-1.5"
-          >
-            {matchOptions.length === 0 && <option value="">—</option>}
-            {matchOptions.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.label}
-              </option>
-            ))}
-          </select>
-        </label>
+          <MatchPicker options={matchOptions} value={matchId} onChange={setMatchId} />
+        </div>
 
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-slate-600">{t('value.selectMarket')}</span>
@@ -236,7 +247,7 @@ export default function ValueCalculator({
           >
             {OUTCOMES[market].map((o) => (
               <option key={o} value={o}>
-                {t(`outcome.${o}`)}
+                {outcomeLabel(o)}
               </option>
             ))}
           </select>
@@ -259,6 +270,9 @@ export default function ValueCalculator({
               onChange={(e) => setUserPoint(e.target.value)}
               className="rounded border border-slate-300 px-2 py-1.5"
             />
+            <span className="text-xs leading-relaxed text-slate-400">
+              {t('value.yourLineHint')}
+            </span>
           </label>
         )}
 
@@ -274,12 +288,16 @@ export default function ValueCalculator({
             step="any"
             value={oddsInput}
             onChange={(e) => setOddsInput(e.target.value)}
+            placeholder={ODDS_PLACEHOLDER[format]}
             className="rounded border border-slate-300 px-2 py-1.5"
           />
         </label>
 
         <label className="flex flex-col gap-1 text-sm">
-          <span className="text-slate-600">{t('value.bankroll', { currency })}</span>
+          <span className="flex items-center gap-1 text-slate-600">
+            {t('value.bankroll', { currency })}
+            <InfoPopover title={t('value.bankroll', { currency })} body={t('value.bankrollHelp')} align="end" />
+          </span>
           <input
             type="number"
             step="any"

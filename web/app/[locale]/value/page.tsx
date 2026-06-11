@@ -25,7 +25,13 @@ export default async function ValuePage({
     const home = displayTeamName(m.home, locale as Locale);
     const away = displayTeamName(m.away, locale as Locale);
     const grp = m.group_label ? ` · ${t('groups.groupLabel')} ${m.group_label}` : '';
-    return { id: m.match_id, label: `${home} vs ${away}${grp}` };
+    return {
+      id: m.match_id,
+      label: `${home} vs ${away}${grp}`,
+      home: { teamId: m.home.team_id, name: home },
+      away: { teamId: m.away.team_id, name: away },
+      group: m.group_label,
+    };
   });
 
   // prefill from the divergence screener links (P6 §3.7); invalid values are ignored
@@ -50,13 +56,13 @@ export default async function ValuePage({
         </Link>
       </header>
 
-      <DivergenceList rows={divergence} locale={locale as Locale} />
-
       {options.length === 0 ? (
         <EmptyState message={t('common.dataUnavailable')} />
       ) : (
         <ValueCalculator matchOptions={options} defaults={defaults} />
       )}
+
+      <DivergenceList rows={divergence} locale={locale as Locale} />
     </div>
   );
 }

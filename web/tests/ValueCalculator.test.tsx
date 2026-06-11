@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { screen, cleanup, fireEvent } from '@testing-library/react';
-import ValueCalculator from '../components/ValueCalculator';
+import { screen, cleanup, fireEvent, render } from '@testing-library/react';
+import { NextIntlClientProvider } from 'next-intl';
+import ValueCalculator, { type MatchOption } from '../components/ValueCalculator';
 import { renderWithIntl, en } from './testUtils';
 import type { ValueMarketResponse } from '../lib/types';
 
@@ -54,6 +55,47 @@ describe('ValueCalculator v2', () => {
     const modelBtn = screen.getByRole('button', { name: en.value.modeModel });
     expect(marketBtn.getAttribute('aria-pressed')).toBe('true');
     expect(modelBtn.getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('outcome dropdown shows which team is home/away when names are provided', async () => {
+    mockFetchOnce(h2hResp());
+    renderWithIntl(
+      <ValueCalculator
+        matchOptions={[
+          {
+            id: 'm1',
+            label: 'Mexico vs South Africa',
+            home: { teamId: 'MX', name: 'Mexico' },
+            away: { teamId: 'ZA', name: 'South Africa' },
+            group: 'A',
+          },
+        ]}
+      />,
+    );
+    await screen.findByRole('button', { name: en.value.modeModel });
+    expect(screen.getByText('Home（Mexico）')).toBeTruthy();
+    expect(screen.getByText('Away（South Africa）')).toBeTruthy();
+  });
+
+  it('re-applies the screener prefill when defaults change (same-page nav, no remount)', async () => {
+    mockFetchOnce(h2hResp());
+    const opts: MatchOption[] = [
+      { id: 'm1', label: 'A vs B', home: { teamId: 'A', name: 'Argentina' }, away: { teamId: 'B', name: 'Brazil' }, group: 'A' },
+      { id: 'm2', label: 'C vs D', home: { teamId: 'C', name: 'Chile' }, away: { teamId: 'D', name: 'Denmark' }, group: 'B' },
+    ];
+    const wrap = (defaults: { matchId: string; market: 'h2h'; outcome: string }) => (
+      <NextIntlClientProvider locale="en" timeZone="UTC" messages={en as never}>
+        <ValueCalculator matchOptions={opts} defaults={defaults} />
+      </NextIntlClientProvider>
+    );
+    const { rerender } = render(wrap({ matchId: 'm1', market: 'h2h', outcome: 'home' }));
+    await screen.findByRole('button', { name: en.value.modeModel });
+    expect((screen.getByLabelText(en.value.selectOutcome) as HTMLSelectElement).value).toBe('home');
+    expect(screen.getByRole('button', { name: /Argentina/ })).toBeTruthy();
+    // clicking a divergence row = same-page navigation: a new defaults prop, NO remount
+    rerender(wrap({ matchId: 'm2', market: 'h2h', outcome: 'away' }));
+    await screen.findByRole('button', { name: /Chile/ });
+    expect((screen.getByLabelText(en.value.selectOutcome) as HTMLSelectElement).value).toBe('away');
   });
 
   it('TB8c: per-mode EV equals evaluate() on that mode probability exactly', async () => {
