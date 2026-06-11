@@ -99,6 +99,50 @@ python -m etl.calibrate
 
 ---
 
+## 一之二、賽後 / matchday（每場比賽踢完後跑）
+
+每場小組賽結束後，依序跑這三個指令更新平台。**有依賴順序，由上而下執行。**
+
+### 1. 重匯賽程 + 比分（status + 進球）
+
+```bash
+python -m etl.ingest_fixtures
+```
+
+> 從 football-data 抓 `status='final'` 與 `score.fullTime` 進球，寫入 `matches.home_goals` / `away_goals`。idempotent 可重跑。
+>
+> ⚠️ **fd 免費層的賽後資料不可靠**：常把比賽標 `FINISHED` 卻給 null 比分，甚至狀態反覆跳動
+> （實測 2026-06-11 開幕戰 537327：`FINISHED`↔`TIMED` 來回、比分一直 null）。
+> 此時 ingest **不會中止**，那場會印 `WARNING … no score yet — left UNSETTLED`，暫時維持未結算（顯示賽前機率）。
+> 要讓它結算，把**已驗證的真實比分**填進 [etl/results.py](../etl/results.py) 的 `RESULTS`
+> （key = match_id，例如 `"537327": (2, 0)`），再重跑本指令。
+> 該表是**權威來源**：有填就結算（不管 fd 狀態），fd 之後若給出**不一致**的比分會 **fail-loud 報錯**要你對帳；
+> 等 fd 穩定給對的比分後可把該列移除、交還給 fd。
+
+### 2. 重跑模擬（鎖定已結算比賽 → 更新晉級機率）
+
+```bash
+python -m etl.simulate
+```
+
+> 已結算比賽的真實比分會被鎖定（不再抽樣），重算各隊 `group_sim` 晉級機率。
+> summary 會印 `Settled matches: N/72 (locked)`。
+
+### 3. 校正（模型 vs 市場計分）
+
+```bash
+python -m etl.calibrate
+```
+
+> 對已結算比賽計分（Brier / log-loss）並 append `calibration_runs`。
+> 賽事初期 n 還小（< 30），模型模式 Kelly 仍鎖，屬正常。
+
+> **不用每場跑**：
+> - `predict` — 每場比賽的 λ 在賽前就固定、不會變；只有**重新擬合模型**（換引擎常數）時才重跑全部。
+> - `ingest_odds` — 已有 GitHub Actions 每日 UTC 06:00 自動跑；已踢完的比賽不需要新賠率。
+
+---
+
 ## 二、診斷 / 分析（任何時候可跑）
 
 ### 市場分歧診斷

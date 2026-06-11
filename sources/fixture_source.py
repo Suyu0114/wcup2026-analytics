@@ -56,6 +56,8 @@ class Fixture:
     kickoff_utc: str                # ISO-8601 UTC string
     status: str                     # internal: scheduled|live|final
     venue: str | None = None        # fd venue string (None pre-tournament — verified 0/104)
+    home_goals: int | None = None   # fd score.fullTime.home (None until played)
+    away_goals: int | None = None   # fd score.fullTime.away (None until played)
 
 
 def _group_letter(group: str | None) -> str | None:
@@ -97,6 +99,9 @@ class FootballDataFixtureSource:
                 raise ValueError(f"Unknown stage {stage!r} for match {m['id']}")
             home = m.get("homeTeam") or {}
             away = m.get("awayTeam") or {}
+            # Full-time score: null until the match is played (verify-don't-assume —
+            # simulate/calibrate require non-null goals once status='final').
+            ft = (m.get("score") or {}).get("fullTime") or {}
             out.append(
                 Fixture(
                     match_id=str(m["id"]),
@@ -109,6 +114,8 @@ class FootballDataFixtureSource:
                     kickoff_utc=m["utcDate"],
                     status=STATUS_MAP.get(m["status"], "scheduled"),
                     venue=m.get("venue"),
+                    home_goals=ft.get("home"),
+                    away_goals=ft.get("away"),
                 )
             )
         return out

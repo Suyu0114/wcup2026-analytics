@@ -13,7 +13,7 @@ import argparse
 from collections import defaultdict
 from datetime import date, datetime
 
-from etl import config, venues
+from etl import config, results, venues
 from etl.identity import build_alias_map, resolve
 from sources.fixture_source import Fixture, FootballDataFixtureSource
 from sources.rating_source import CsvRatingSource
@@ -37,9 +37,34 @@ def _has_teams(f: Fixture) -> bool:
     return bool(f.home_name or f.home_tla) and bool(f.away_name or f.away_tla)
 
 
+def _resolve_score(f: Fixture) -> tuple[str, int | None, int | None]:
+    """Effective (status, home_goals, away_goals), reconciling fd with curated results.
+
+    fd's matchday data is unreliable on the free tier (verified 2026-06-11: 537327
+    flapped FINISHED→TIMED, score null throughout). So a hand-verified curated result
+    (etl/results.py) is authoritative: when present it settles the match regardless of
+    fd's status, and a *conflicting* non-null fd score fails loud (verify-don't-assume).
+    With no override, a fd FINISHED-without-score is left unsettled ('live') so the
+    ingest isn't blocked and simulate falls back to pre-match probabilities.
+    """
+    override = results.result(f.match_id)
+    fd_has_score = f.home_goals is not None and f.away_goals is not None
+    if override is not None:
+        if fd_has_score and (f.home_goals, f.away_goals) != override:
+            raise ValueError(
+                f"curated result {override} for match {f.match_id} conflicts with "
+                f"football-data ({f.home_goals},{f.away_goals}) — reconcile etl/results.py"
+            )
+        return "final", override[0], override[1]
+    if f.status == "final" and not fd_has_score:
+        return "live", None, None
+    return f.status, f.home_goals, f.away_goals
+
+
 def _match_row(f: Fixture, home_id: str, away_id: str) -> dict:
     # P6 A1: host venue lookup (raises for a host match with no curated venue).
     is_host_home, is_host_away = venues.host_flags(f.match_id, home_id, away_id, f.venue)
+    status, home_goals, away_goals = _resolve_score(f)
     return {
         "match_id": f.match_id,
         "stage": f.stage,
@@ -49,8 +74,20 @@ def _match_row(f: Fixture, home_id: str, away_id: str) -> dict:
         "kickoff_utc": f.kickoff_utc,
         "is_host_home": is_host_home,
         "is_host_away": is_host_away,
-        "status": f.status,
+        "status": status,
+        "home_goals": home_goals,
+        "away_goals": away_goals,
     }
+
+
+def assert_settled_have_goals(rows: list[dict]) -> None:
+    """A match marked final must carry a score, else simulate/calibrate fail-loud later."""
+    for r in rows:
+        if r["status"] == "final" and (r["home_goals"] is None or r["away_goals"] is None):
+            raise ValueError(
+                f"Settled match {r['match_id']} (status='final') missing goals "
+                f"(home={r['home_goals']}, away={r['away_goals']}) — verify-don't-assume"
+            )
 
 
 def validate(fixtures: list[Fixture], rows: list[dict]) -> None:
@@ -100,6 +137,10 @@ def validate(fixtures: list[Fixture], rows: list[dict]) -> None:
             f"({EXPECTED_HOST_HOME}, {EXPECTED_HOST_AWAY}) — check etl/venues.py"
         )
 
+    # Settled matches must carry a score (verify-don't-assume — mirrors the fail-loud
+    # guard in db.fetch_group_matches_with_predictions, but caught here at ingest time).
+    assert_settled_have_goals(rows)
+
 
 def run(dry_run: bool = False, today: date | None = None) -> list[dict]:
     src = FootballDataFixtureSource()
@@ -127,6 +168,24 @@ def run(dry_run: bool = False, today: date | None = None) -> list[dict]:
         f"{n_host} host-venue matches flagged; "
         f"{no_venue} non-host matches without venue (neutral assumed — warn, P6 TA1)."
     )
+
+    # Matchday: surface curated overrides applied + fd FINISHED-without-score left unsettled.
+    with_teams = [f for f in fixtures if _has_teams(f)]
+    overridden = [f for f in with_teams if results.result(f.match_id) is not None]
+    awaiting = [
+        f for f in with_teams
+        if results.result(f.match_id) is None
+        and f.status == "final" and (f.home_goals is None or f.away_goals is None)
+    ]
+    if overridden:
+        ids = ", ".join(f.match_id for f in overridden)
+        print(f"  {len(overridden)} match(es) settled from curated etl/results.py override: {ids}")
+    if awaiting:
+        ids = ", ".join(f.match_id for f in awaiting)
+        print(
+            f"  WARNING: {len(awaiting)} match(es) FINISHED upstream but no score yet — "
+            f"left UNSETTLED. Add the verified score to etl/results.py and re-run: {ids}"
+        )
 
     if dry_run:
         print("--dry-run: skipping matches upsert.")
