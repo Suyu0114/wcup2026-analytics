@@ -521,7 +521,12 @@ function VerdictBlock({
           })}
         </p>
       )}
-      {tier === 'nearFair' && <p className="text-xs text-slate-500">{t('value.nearFairNote')}</p>}
+      {source === 'market' && tier === 'nearFair' && (
+        <p className="text-xs text-slate-500">{t('value.nearFairNote')}</p>
+      )}
+      {source === 'market' && tier === 'expensive' && (
+        <p className="text-xs text-slate-500">{t('value.expensiveNote')}</p>
+      )}
     </div>
   );
 }
