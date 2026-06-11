@@ -44,7 +44,7 @@
     "filterAll": "全部",
     "filterGroup": "組別",
     "filterUpset": "只看爆冷",
-    "filterDivergence": "只看分歧",
+    "filterDivergence": "模型與市場分歧",
     "filterDate": "日期",
     "allDates": "全部日期",
     "filtersToggle": "篩選",
@@ -265,7 +265,7 @@
   },
   "upset": {
     "badge": "爆冷風險",
-    "tooltip": "兩隊 Elo 差距大，但弱隊不敗機率仍不低。"
+    "tooltip": "兩隊 Elo 差距大，但弱隊仍有相當機率平局或爆冷勝出。"
   },
   "divergence": {
     "badge": "與市場分歧",
