@@ -1,6 +1,6 @@
 import { useTranslations } from 'next-intl';
 import type { MatchView } from '@/lib/types';
-import type { Locale } from '@/lib/routing';
+import { Link, type Locale } from '@/lib/routing';
 import { displayTeamName } from '@/lib/teamName';
 import { formatKickoff, formatPercent } from '@/lib/format';
 import ModelVsMarket from './ModelVsMarket';
@@ -80,11 +80,19 @@ export default function MatchCard({
         <p className="text-sm text-slate-400">{t('matches.predictionsEmpty')}</p>
       )}
 
-      {match.market?.freshness && (
-        <div className="text-right">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2">
+        {match.market?.freshness ? (
           <FreshnessIndicator freshness={match.market.freshness} />
-        </div>
-      )}
+        ) : (
+          <span />
+        )}
+        <Link
+          href={`/value?match=${encodeURIComponent(match.match_id)}`}
+          className="rounded bg-sky-50 px-3 py-1.5 text-sm text-sky-700 hover:bg-sky-100"
+        >
+          {t('matches.evCalculator')} →
+        </Link>
+      </div>
     </article>
   );
 }

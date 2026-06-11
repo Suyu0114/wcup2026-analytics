@@ -1,6 +1,7 @@
 import { useTranslations } from 'next-intl';
 import ProbBar from './ProbBar';
 import ExperimentalTag from './ExperimentalTag';
+import InfoPopover from './InfoPopover';
 
 interface Triple {
   home: number;
@@ -34,8 +35,9 @@ export default function ModelVsMarket({ model, market }: { model: Triple; market
       </div>
 
       <div>
-        <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-emerald-700">
+        <div className="mb-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-emerald-700">
           {t('matches.marketLabel')}
+          <InfoPopover body={t('matches.vigTooltip')} align="end" />
         </div>
         {market ? (
           <div className="space-y-1">
