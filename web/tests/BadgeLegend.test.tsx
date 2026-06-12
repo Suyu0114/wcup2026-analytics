@@ -7,11 +7,19 @@ import { renderWithIntl, en } from './testUtils';
 afterEach(cleanup);
 
 describe('BadgeLegend', () => {
-  it('shows both badge labels with their explanations as plain text (no tap needed)', () => {
+  it('shows every badge label with its explanation as plain text (no tap needed)', () => {
     renderWithIntl(<BadgeLegend />);
     expect(screen.getByText(en.matches.legendTitle)).toBeTruthy();
-    expect(screen.getByText(en.upset.badge)).toBeTruthy();
-    expect(screen.getByText(en.upset.tooltip)).toBeTruthy();
+    // tiered upset badges (A+/A/B): each pill label + its explanation
+    for (const [badge, tooltip] of [
+      [en.upset.badge_aplus, en.upset.tooltip_aplus],
+      [en.upset.badge_a, en.upset.tooltip_a],
+      [en.upset.badge_b, en.upset.tooltip_b],
+    ] as const) {
+      expect(screen.getByText(badge)).toBeTruthy();
+      expect(screen.getByText(tooltip)).toBeTruthy();
+    }
+    // divergence badge: pill label + explanation
     expect(screen.getByText(en.divergence.badge)).toBeTruthy();
     expect(screen.getByText(en.divergence.tooltip)).toBeTruthy();
   });
