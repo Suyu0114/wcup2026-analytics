@@ -17,7 +17,8 @@
     "stale": "Data may be stale",
     "utc": "UTC",
     "na": "—",
-    "languageName": "English"
+    "languageName": "English",
+    "menu": "Menu"
   },
   "nav": {
     "home": "Home",
