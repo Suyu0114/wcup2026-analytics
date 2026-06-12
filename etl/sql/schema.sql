@@ -136,3 +136,18 @@ create table group_sim (
   computed_at     timestamptz not null default now(),
   primary key (team_id, model_version)
 );
+
+-- =====================================================================
+-- P7 (admin matchday entry): manual match-result overrides. Migration: p7.sql.
+-- AUTHORITATIVE hand-verified result source (fd matchday data is unreliable on the
+-- free tier). The admin page upserts here; etl/ingest_fixtures.py reads it DB-first
+-- (code dict etl/results.py is a fallback seed). One curated result per match.
+-- =====================================================================
+create table manual_results (
+  match_id    text primary key references matches(match_id),
+  home_goals  int not null,
+  away_goals  int not null,
+  entered_by  text,                              -- admin identifier (provenance/audit)
+  entered_at  timestamptz not null default now(),
+  note        text
+);

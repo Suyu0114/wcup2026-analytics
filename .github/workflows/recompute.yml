@@ -1,0 +1,34 @@
+name: Recompute
+
+# Matchday recompute: re-runs the pipeline after a manual result is entered.
+# Triggered manually (Actions tab) or by the admin page via the GitHub API
+# (repository_dispatch event_type = 'recompute-request').
+on:
+  workflow_dispatch:
+  repository_dispatch:
+    types: [recompute-request]
+
+# Queue overlapping requests rather than clobbering an in-flight simulation.
+concurrency:
+  group: recompute
+  cancel-in-progress: false
+
+jobs:
+  recompute:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      FOOTBALL_DATA_TOKEN: ${{ secrets.FOOTBALL_DATA_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - name: Ingest fixtures (settles matches from manual_results)
+        run: python -m etl.ingest_fixtures
+      - name: Simulate group-stage advancement
+        run: python -m etl.simulate
+      - name: Calibrate (model vs market)
+        run: python -m etl.calibrate

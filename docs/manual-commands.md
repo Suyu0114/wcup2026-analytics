@@ -114,10 +114,17 @@ python -m etl.ingest_fixtures
 > ⚠️ **fd 免費層的賽後資料不可靠**：常把比賽標 `FINISHED` 卻給 null 比分，甚至狀態反覆跳動
 > （實測 2026-06-11 開幕戰 537327：`FINISHED`↔`TIMED` 來回、比分一直 null）。
 > 此時 ingest **不會中止**，那場會印 `WARNING … no score yet — left UNSETTLED`，暫時維持未結算（顯示賽前機率）。
-> 要讓它結算，把**已驗證的真實比分**填進 [etl/results.py](../etl/results.py) 的 `RESULTS`
-> （key = match_id，例如 `"537327": (2, 0)`），再重跑本指令。
-> 該表是**權威來源**：有填就結算（不管 fd 狀態），fd 之後若給出**不一致**的比分會 **fail-loud 報錯**要你對帳；
+> 要讓它結算，輸入**已驗證的真實比分**到 `manual_results` 表（**首選**：用 [admin 頁面](#admin-頁面手機輸入比分) `/zh-TW/admin`，手機即可；
+> 或在程式裡填 [etl/results.py](../etl/results.py) 的 `RESULTS`，例如 `"537327": (2, 0)`，作為 code seed）。
+> 覆寫優先序：`manual_results`（DB）> `etl/results.py`（seed）。
+> 兩者皆**權威**：有值就結算（不管 fd 狀態），fd 之後若給出**不一致**的比分會 **fail-loud 報錯**要你對帳；
 > 等 fd 穩定給對的比分後可把該列移除、交還給 fd。
+>
+> <a id="admin-頁面手機輸入比分"></a>**Admin 頁面（手機輸入比分 → 自動重算）**：`/zh-TW/admin`（密碼登入）輸入比分 →
+> 寫入 `manual_results` 並觸發 GitHub Actions `recompute` workflow（`ingest_fixtures → simulate → calibrate`），
+> 約 1–3 分鐘後晉級機率自動更新，不需手動跑上面三個指令。
+> 需先：套用 [etl/sql/migrations/p7.sql](../etl/sql/migrations/p7.sql)（`manual_results` 表）、設好
+> Vercel secrets（`ADMIN_PASSWORD_HASH` / `ADMIN_SESSION_SECRET` / `GITHUB_DISPATCH_TOKEN`）、GitHub repo secret `FOOTBALL_DATA_TOKEN`。
 
 ### 2. 重跑模擬（鎖定已結算比賽 → 更新晉級機率）
 

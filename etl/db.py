@@ -228,6 +228,39 @@ def fetch_settled_matches() -> list[dict]:
     )
 
 
+def fetch_manual_results() -> dict[str, tuple[int, int]]:
+    """{match_id: (home_goals, away_goals)} from manual_results (admin-entered overrides).
+
+    Authoritative hand-verified scores; ingest_fixtures reads these DB-first (P7).
+    """
+    rows = (
+        get_client()
+        .table("manual_results")
+        .select("match_id,home_goals,away_goals")
+        .execute()
+        .data
+    )
+    return {r["match_id"]: (int(r["home_goals"]), int(r["away_goals"])) for r in rows}
+
+
+def upsert_manual_result(
+    match_id: str,
+    home_goals: int,
+    away_goals: int,
+    entered_by: str | None = None,
+    note: str | None = None,
+) -> None:
+    """Upsert one curated result on match_id (idempotent). Source for matchday recompute."""
+    row = {
+        "match_id": match_id,
+        "home_goals": home_goals,
+        "away_goals": away_goals,
+        "entered_by": entered_by,
+        "note": note,
+    }
+    get_client().table("manual_results").upsert([row], on_conflict="match_id").execute()
+
+
 def fetch_match_predictions_1x2(model_version: str) -> dict:
     data = (
         get_client()

@@ -5,7 +5,6 @@ End-to-end TF1–TF4 run against live data via `python -m etl.ingest_fixtures
 """
 import pytest
 
-from etl import results
 from etl.ingest_fixtures import (
     _has_teams,
     _kickoff_date,
@@ -129,27 +128,26 @@ def test_assert_settled_have_goals_passes_when_present_or_unplayed():
 # --- curated results override / final-without-score fallback ---
 
 def test_resolve_score_passes_fd_goals_through():
-    assert _resolve_score(_fx(status="final", hg=3, ag=0)) == ("final", 3, 0)
+    assert _resolve_score(_fx(status="final", hg=3, ag=0), {}) == ("final", 3, 0)
 
 
-def test_resolve_score_override_settles_regardless_of_fd_status(monkeypatch):
+def test_resolve_score_override_settles_regardless_of_fd_status():
     # Override is authoritative: settles 'final' even if fd flaps to scheduled/TIMED.
-    monkeypatch.setitem(results.RESULTS, "testA", (2, 1))
-    assert _resolve_score(_fx(match_id="testA", status="scheduled")) == ("final", 2, 1)
-    assert _resolve_score(_fx(match_id="testA", status="final")) == ("final", 2, 1)
+    ov = {"testA": (2, 1)}
+    assert _resolve_score(_fx(match_id="testA", status="scheduled"), ov) == ("final", 2, 1)
+    assert _resolve_score(_fx(match_id="testA", status="final"), ov) == ("final", 2, 1)
 
 
-def test_resolve_score_override_agreeing_with_fd_is_fine(monkeypatch):
-    monkeypatch.setitem(results.RESULTS, "testA", (2, 1))
-    assert _resolve_score(_fx(match_id="testA", status="final", hg=2, ag=1)) == ("final", 2, 1)
+def test_resolve_score_override_agreeing_with_fd_is_fine():
+    ov = {"testA": (2, 1)}
+    assert _resolve_score(_fx(match_id="testA", status="final", hg=2, ag=1), ov) == ("final", 2, 1)
 
 
-def test_resolve_score_override_conflicting_with_fd_raises(monkeypatch):
-    monkeypatch.setitem(results.RESULTS, "testA", (2, 1))
+def test_resolve_score_override_conflicting_with_fd_raises():
     with pytest.raises(ValueError, match="conflicts with football-data"):
-        _resolve_score(_fx(match_id="testA", status="final", hg=3, ag=0))
+        _resolve_score(_fx(match_id="testA", status="final", hg=3, ag=0), {"testA": (2, 1)})
 
 
 def test_resolve_score_downgrades_final_without_score_or_override():
     # fd FINISHED but null score and no curated entry -> not promoted to final.
-    assert _resolve_score(_fx(match_id="999", status="final")) == ("live", None, None)
+    assert _resolve_score(_fx(match_id="999", status="final"), {}) == ("live", None, None)
