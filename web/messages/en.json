@@ -47,6 +47,7 @@
     "filterGroup": "Group",
     "filterUpset": "Upsets only",
     "filterDivergence": "Divergence only",
+    "hideFinished": "Hide finished",
     "filterDate": "Date",
     "allDates": "All dates",
     "filtersToggle": "Filters",

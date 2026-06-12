@@ -14,13 +14,14 @@ function makeMatch(p: {
   upsetTier?: 'A+' | 'A' | 'B' | null;
   diverges?: boolean;
   homeName?: string;
+  status?: string;
 }): MatchView {
   return {
     match_id: p.id,
     stage: 'group',
     group_label: p.group,
     kickoff_utc: `${p.date}T18:00:00Z`,
-    status: 'scheduled',
+    status: p.status ?? 'scheduled',
     home: { team_id: `${p.id}H`, name_en: p.homeName ?? `${p.id} Home`, name_zh: null, elo: 1900 },
     away: { team_id: `${p.id}A`, name_en: `${p.id} Away`, name_zh: null, elo: 1800 },
     model: {
@@ -97,6 +98,20 @@ describe('MatchFilters (client-side filter, Issue 7)', () => {
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'brazil' } });
     expect(await screen.findByText('Showing 1 of 2')).toBeTruthy();
     expect(screen.getAllByRole('article')).toHaveLength(1);
+  });
+
+  it('hides finished matches by default, and reveals them when unchecked', () => {
+    render([
+      makeMatch({ id: 'm1', group: 'A', date: '2026-06-11', status: 'final' }),
+      makeMatch({ id: 'm2', group: 'A', date: '2026-06-12' }),
+    ]);
+    // default: "Hide finished" checked -> finished m1 hidden
+    expect(screen.getByText('Showing 1 of 2')).toBeTruthy();
+    expect(screen.getAllByRole('article')).toHaveLength(1);
+    // uncheck -> both visible
+    fireEvent.click(screen.getByRole('checkbox', { name: en.matches.hideFinished }));
+    expect(screen.getByText('Showing 2 of 2')).toBeTruthy();
+    expect(screen.getAllByRole('article')).toHaveLength(2);
   });
 
   it('shows a no-results message (not a crash) when filters exclude everything', () => {

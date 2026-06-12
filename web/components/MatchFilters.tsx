@@ -48,6 +48,7 @@ export default function MatchFilters({
   const [date, setDate] = useState('all');
   const [upsetOnly, setUpsetOnly] = useState(false);
   const [divergenceOnly, setDivergenceOnly] = useState(false);
+  const [hideFinished, setHideFinished] = useState(true);
   const [query, setQuery] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
 
@@ -72,6 +73,7 @@ export default function MatchFilters({
   const filtered = useMemo(
     () =>
       matches.filter((m) => {
+        if (hideFinished && m.status === 'final') return false;
         if (group !== 'all' && m.group_label !== group) return false;
         if (upsetOnly && !m.model?.upset.tier) return false;
         if (divergenceOnly && !m.divergence?.flag) return false;
@@ -83,7 +85,7 @@ export default function MatchFilters({
         }
         return true;
       }),
-    [matches, group, upsetOnly, divergenceOnly, date, q, locale, tz],
+    [matches, group, upsetOnly, divergenceOnly, hideFinished, date, q, locale, tz],
   );
 
   const chip = (active: boolean) =>
@@ -165,6 +167,14 @@ export default function MatchFilters({
               onChange={(e) => setDivergenceOnly(e.target.checked)}
             />
             {t('matches.filterDivergence')}
+          </label>
+          <label className="flex items-center gap-1.5 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={hideFinished}
+              onChange={(e) => setHideFinished(e.target.checked)}
+            />
+            {t('matches.hideFinished')}
           </label>
           <input
             type="search"
