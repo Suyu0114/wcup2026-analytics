@@ -73,7 +73,7 @@ export default function MatchFilters({
     () =>
       matches.filter((m) => {
         if (group !== 'all' && m.group_label !== group) return false;
-        if (upsetOnly && !m.model?.upset.flag) return false;
+        if (upsetOnly && !m.model?.upset.tier) return false;
         if (divergenceOnly && !m.divergence?.flag) return false;
         if (date !== 'all' && dateKey(m.kickoff_utc, tz) !== date) return false;
         if (q) {

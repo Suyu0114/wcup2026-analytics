@@ -34,7 +34,7 @@ export interface MatchModel {
   p_over_2_5: number;
   p_btts: number | null;
   exp_total_goals: number;
-  upset: { flag: boolean; weaker: string | null };
+  upset: { tier: 'A+' | 'A' | 'B' | null; weaker: string | null };
 }
 
 export interface MatchMarket {

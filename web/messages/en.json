@@ -264,8 +264,12 @@
     "malaysian": "Malaysian"
   },
   "upset": {
-    "badge": "Upset risk",
-    "tooltip": "Large Elo gap, yet the underdog's not-lose probability is still meaningful."
+    "badge_aplus": "Upset A+",
+    "badge_a": "Upset A",
+    "badge_b": "Upset B",
+    "tooltip_aplus": "Extreme Elo gap (≥250 pts), yet the underdog still has a 35%+ chance of not losing — the crowd expects a blowout, the model says it's closer than you think.",
+    "tooltip_a": "Large Elo gap (≥200 pts) with the underdog's not-lose probability still above 35%. A clear favourite, but not a foregone conclusion.",
+    "tooltip_b": "Notable Elo gap (≥150 pts) with the underdog's not-lose probability above 40%. The stronger team is favoured but far from a certainty."
   },
   "divergence": {
     "badge": "Diverges from market",

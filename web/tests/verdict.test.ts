@@ -27,7 +27,7 @@ function mv(id: string, pHome: number, mktHome: number, status = 'scheduled'): M
     away: { team_id: 'A' + id, name_en: 'A' + id, name_zh: null, elo: 1700 },
     model: {
       model_version: 'dc-v1.1', p_home: pHome, p_draw: 0.2, p_away: 1 - pHome - 0.2,
-      p_over_2_5: 0.5, p_btts: null, exp_total_goals: 2.4, upset: { flag: false, weaker: null },
+      p_over_2_5: 0.5, p_btts: null, exp_total_goals: 2.4, upset: { tier: null, weaker: null },
     },
     market: {
       pinnacle_novig: { home: mktHome, draw: 0.2, away: 1 - mktHome - 0.2 },

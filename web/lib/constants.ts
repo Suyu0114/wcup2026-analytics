@@ -3,9 +3,14 @@
 // Active model version — bump together with engine.dixon_coles.MODEL_VERSION (P6 TA5).
 export const MODEL_VERSION = 'dc-v1.1';
 
-// Upset rule thresholds (P1 §5.4 / spec §6.3) — adjustable, not hardcoded in the engine.
-export const UPSET_ELO_GAP = 150;
-export const UPSET_PROB = 0.4;
+// Tiered upset thresholds (P1 §5.4 / spec §6.3) — cascade A+ → A → B (first match wins).
+// Adjustable, not hardcoded in the engine. Calibrated for dc-v1.1 fitted params.
+export type UpsetTier = 'A+' | 'A' | 'B';
+export const UPSET_TIERS: readonly { tier: UpsetTier; eloGap: number; prob: number }[] = [
+  { tier: 'A+', eloGap: 250, prob: 0.35 },
+  { tier: 'A',  eloGap: 200, prob: 0.35 },
+  { tier: 'B',  eloGap: 150, prob: 0.40 },
+];
 
 // Odds freshness window (spec §4.4): older than this → flagged stale.
 export const FRESH_WINDOW_MS = 24 * 60 * 60 * 1000;

@@ -47,7 +47,7 @@
     "filterDivergence": "模型與市場分歧",
     "filterDate": "日期",
     "allDates": "全部日期",
-    "filtersToggle": "篩選",
+    "filtersToggle": "篩選器",
     "legendTitle": "標籤說明",
     "searchCountry": "搜尋隊伍…",
     "evCalculator": "用 EV 計算機比對你的賠率",
@@ -264,8 +264,12 @@
     "malaysian": "馬來盤"
   },
   "upset": {
-    "badge": "爆冷風險",
-    "tooltip": "兩隊 Elo 差距大，但弱隊仍有相當機率平局或爆冷勝出。"
+    "badge_aplus": "爆冷風險 A+",
+    "badge_a": "爆冷風險 A",
+    "badge_b": "爆冷風險 B",
+    "tooltip_aplus": "Elo 差距極大（≥250），但模型認為弱隊仍有超過35%不輸——大眾預期一面倒，模型卻不完全同意。",
+    "tooltip_a": "Elo 差距大（≥200），弱隊不輸機率仍達35%以上。差距明顯但結果未必一面倒。",
+    "tooltip_b": "Elo 差距明顯（≥150），弱隊不輸機率仍達40%。強隊贏面大但絕非穩贏。"
   },
   "divergence": {
     "badge": "與市場分歧",

@@ -11,7 +11,7 @@ function makeMatch(p: {
   id: string;
   group: string;
   date: string; // YYYY-MM-DD
-  upset: boolean;
+  upsetTier?: 'A+' | 'A' | 'B' | null;
   diverges?: boolean;
   homeName?: string;
 }): MatchView {
@@ -31,18 +31,18 @@ function makeMatch(p: {
       p_over_2_5: 0.5,
       p_btts: 0.5,
       exp_total_goals: 2.6,
-      upset: { flag: p.upset, weaker: p.upset ? `${p.id}A` : null },
+      upset: { tier: p.upsetTier ?? null, weaker: p.upsetTier ? `${p.id}A` : null },
     },
     market: null,
     divergence: p.diverges ? { flag: true, modelPick: 'home', marketPick: 'away' } : null,
   };
 }
 
-// m1: group A, 6/11, no upset | m2: group B, 6/12, upset | m3: group A, 6/12, no upset
+// m1: group A, 6/11, no upset | m2: group B, 6/12, upset A | m3: group A, 6/12, no upset
 const matches: MatchView[] = [
-  makeMatch({ id: 'm1', group: 'A', date: '2026-06-11', upset: false }),
-  makeMatch({ id: 'm2', group: 'B', date: '2026-06-12', upset: true }),
-  makeMatch({ id: 'm3', group: 'A', date: '2026-06-12', upset: false }),
+  makeMatch({ id: 'm1', group: 'A', date: '2026-06-11' }),
+  makeMatch({ id: 'm2', group: 'B', date: '2026-06-12', upsetTier: 'A' }),
+  makeMatch({ id: 'm3', group: 'A', date: '2026-06-12' }),
 ];
 
 function render(ms: MatchView[] = matches) {
@@ -68,14 +68,14 @@ describe('MatchFilters (client-side filter, Issue 7)', () => {
   it('filters to upsets only', () => {
     render();
     fireEvent.click(screen.getByRole('checkbox', { name: en.matches.filterUpset }));
-    expect(screen.getAllByRole('article')).toHaveLength(1); // only m2 has upset flag
+    expect(screen.getAllByRole('article')).toHaveLength(1); // only m2 has upset tier
     expect(screen.getByText('Group B')).toBeTruthy();
   });
 
   it('filters to divergences only', () => {
     render([
-      makeMatch({ id: 'd1', group: 'A', date: '2026-06-11', upset: false, diverges: true }),
-      makeMatch({ id: 'd2', group: 'A', date: '2026-06-11', upset: false }),
+      makeMatch({ id: 'd1', group: 'A', date: '2026-06-11', diverges: true }),
+      makeMatch({ id: 'd2', group: 'A', date: '2026-06-11' }),
     ]);
     fireEvent.click(screen.getByRole('checkbox', { name: en.matches.filterDivergence }));
     expect(screen.getAllByRole('article')).toHaveLength(1);
@@ -91,8 +91,8 @@ describe('MatchFilters (client-side filter, Issue 7)', () => {
 
   it('filters by team name search (debounced)', async () => {
     render([
-      makeMatch({ id: 'm1', group: 'A', date: '2026-06-11', upset: false, homeName: 'Brazil' }),
-      makeMatch({ id: 'm2', group: 'B', date: '2026-06-12', upset: false, homeName: 'Germany' }),
+      makeMatch({ id: 'm1', group: 'A', date: '2026-06-11', homeName: 'Brazil' }),
+      makeMatch({ id: 'm2', group: 'B', date: '2026-06-12', homeName: 'Germany' }),
     ]);
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'brazil' } });
     expect(await screen.findByText('Showing 1 of 2')).toBeTruthy();
@@ -101,7 +101,7 @@ describe('MatchFilters (client-side filter, Issue 7)', () => {
 
   it('shows a no-results message (not a crash) when filters exclude everything', () => {
     render();
-    fireEvent.click(screen.getByRole('button', { name: 'A' })); // group A (m1, m3, both non-upset)
+    fireEvent.click(screen.getByRole('button', { name: 'A' })); // group A (m1, m3, no upset tier)
     fireEvent.click(screen.getByRole('checkbox', { name: en.matches.filterUpset })); // upsets only -> none
     expect(screen.getByText(en.matches.noResults)).toBeTruthy();
     expect(screen.queryAllByRole('article')).toHaveLength(0);

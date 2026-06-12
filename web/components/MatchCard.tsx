@@ -43,7 +43,7 @@ export default function MatchCard({
               {t('groups.groupLabel')} {match.group_label}
             </span>
           )}
-          {match.model?.upset.flag && <UpsetBadge />}
+          {match.model?.upset.tier && <UpsetBadge tier={match.model.upset.tier} />}
           {match.divergence?.flag && <DivergenceBadge />}
         </div>
         <div className="text-right text-xs text-slate-500">
