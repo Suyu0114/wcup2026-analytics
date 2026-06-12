@@ -23,6 +23,10 @@ import type {
   BookPrice,
   Freshness,
   FreshnessSummary,
+  FixturesResponse,
+  FixtureView,
+  StandingsResponse,
+  StandingRow,
 } from './types';
 
 interface OddsRow {
@@ -264,6 +268,90 @@ export async function getGroups(): Promise<GroupsResponse> {
       groups,
       unavailable: false,
     };
+  } catch {
+    return empty;
+  }
+}
+
+/** All stored matches with actual scores (P8 /results). Fetches EVERY stage (not just
+ * group) so the page can switch on `stage`; knockout rows simply don't exist until the
+ * draw is ingested (FK requires teams). Lean: no predictions/odds — results are facts. */
+export async function getFixtures(): Promise<FixturesResponse> {
+  const client = getSupabase();
+  if (!client) return { fixtures: [], unavailable: true };
+  try {
+    const [{ data: teams, error: te }, { data: matches, error: me }] = await Promise.all([
+      client.from('teams').select('team_id,name_en,name_zh,elo'),
+      client
+        .from('matches')
+        .select('match_id,stage,group_label,home_team,away_team,kickoff_utc,status,home_goals,away_goals'),
+    ]);
+    if (te || me) throw te || me;
+    const teamMap = new Map((teams ?? []).map((t) => [t.team_id, t]));
+    const fixtures: FixtureView[] = [];
+    for (const m of matches ?? []) {
+      const home = teamMap.get(m.home_team);
+      const away = teamMap.get(m.away_team);
+      if (!home || !away) continue; // contract violation skipped defensively
+      fixtures.push({
+        match_id: m.match_id,
+        stage: m.stage,
+        group_label: m.group_label,
+        kickoff_utc: m.kickoff_utc,
+        status: m.status,
+        home: { team_id: home.team_id, name_en: home.name_en, name_zh: home.name_zh, elo: Number(home.elo) },
+        away: { team_id: away.team_id, name_en: away.name_en, name_zh: away.name_zh, elo: Number(away.elo) },
+        home_goals: m.home_goals === null ? null : Number(m.home_goals),
+        away_goals: m.away_goals === null ? null : Number(m.away_goals),
+      });
+    }
+    fixtures.sort((a, b) => a.kickoff_utc.localeCompare(b.kickoff_utc));
+    return { fixtures, unavailable: false };
+  } catch {
+    return { fixtures: [], unavailable: true };
+  }
+}
+
+/** Actual group standings (P8 /standings). A FACT — no model_version filter (cf. getGroups,
+ * do not copy the .eq there). Pre-migration the table is absent → query throws → unavailable
+ * (graceful, §6.6). */
+export async function getStandings(): Promise<StandingsResponse> {
+  const empty: StandingsResponse = { groups: {}, computed_at: null, unavailable: true };
+  const client = getSupabase();
+  if (!client) return empty;
+  try {
+    const [{ data: rows, error: se }, { data: teams, error: te }] = await Promise.all([
+      client
+        .from('group_standings')
+        .select('team_id,group_label,played,wins,draws,losses,gf,ga,gd,pts,rank,tied,computed_at'),
+      client.from('teams').select('team_id,name_en,name_zh'),
+    ]);
+    if (se || te) throw se || te;
+    const teamMap = new Map((teams ?? []).map((t) => [t.team_id, t]));
+    const groups: Record<string, StandingRow[]> = {};
+    let computedAt: string | null = null;
+    for (const r of rows ?? []) {
+      computedAt = r.computed_at;
+      const t = teamMap.get(r.team_id);
+      (groups[r.group_label] ??= []).push({
+        team_id: r.team_id,
+        name_en: t?.name_en ?? r.team_id,
+        name_zh: t?.name_zh ?? null,
+        group_label: r.group_label,
+        played: Number(r.played),
+        wins: Number(r.wins),
+        draws: Number(r.draws),
+        losses: Number(r.losses),
+        gf: Number(r.gf),
+        ga: Number(r.ga),
+        gd: Number(r.gd),
+        pts: Number(r.pts),
+        rank: Number(r.rank),
+        tied: Boolean(r.tied),
+      });
+    }
+    for (const g of Object.keys(groups)) groups[g].sort((a, b) => a.rank - b.rank);
+    return { groups, computed_at: computedAt, unavailable: false };
   } catch {
     return empty;
   }

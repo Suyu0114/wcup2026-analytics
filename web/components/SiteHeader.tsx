@@ -14,6 +14,12 @@ export default function SiteHeader() {
           <Link href="/matches" className="text-slate-600 hover:text-slate-900">
             {t('nav.matches')}
           </Link>
+          <Link href="/results" className="text-slate-600 hover:text-slate-900">
+            {t('nav.results')}
+          </Link>
+          <Link href="/standings" className="text-slate-600 hover:text-slate-900">
+            {t('nav.standings')}
+          </Link>
           <Link href="/groups" className="text-slate-600 hover:text-slate-900">
             {t('nav.groups')}
           </Link>
