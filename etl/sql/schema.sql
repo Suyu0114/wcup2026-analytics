@@ -151,3 +151,27 @@ create table manual_results (
   entered_at  timestamptz not null default now(),
   note        text
 );
+
+-- =====================================================================
+-- P8 (FIFA-style group standings): actual table computed from finished group
+-- matches. Migration: p8.sql. NOT a model output — it's a FACT derived from
+-- results, so NO model_version (one canonical row per team). Recomputed by
+-- etl/standings.py in the matchday recompute pipeline. Rank tiebreaker is the
+-- DISPLAY one: Pts→GD→GF→H2H, then `tied=true` (no Elo/lots; see engine/standings.py).
+-- =====================================================================
+create table group_standings (
+  team_id      text primary key references teams(team_id),
+  group_label  char(1) not null,                   -- 'A'..'L'
+  played       int not null default 0,
+  wins         int not null default 0,
+  draws        int not null default 0,
+  losses       int not null default 0,
+  gf           int not null default 0,             -- goals for
+  ga           int not null default 0,             -- goals against
+  gd           int not null default 0,             -- = gf - ga (denormalized for ordering)
+  pts          int not null default 0,
+  rank         int not null,                        -- 1-based position within group
+  tied         boolean not null default false,      -- unresolved level with an adjacent team
+  computed_at  timestamptz not null default now()   -- provenance
+);
+create index group_standings_group on group_standings (group_label, rank);

@@ -28,6 +28,8 @@ jobs:
       - run: pip install -r requirements.txt
       - name: Ingest fixtures (settles matches from manual_results)
         run: python -m etl.ingest_fixtures
+      - name: Recompute group standings (actual table)
+        run: python -m etl.standings
       - name: Simulate group-stage advancement
         run: python -m etl.simulate
       - name: Calibrate (model vs market)

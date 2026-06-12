@@ -383,3 +383,31 @@ def upsert_group_sim(rows: list[dict]) -> int:
         ).execute()
     return len(rows)
 
+
+# --- P8 reads/writes (FIFA-style group standings) ---
+
+def fetch_group_matches_for_standings() -> list[dict]:
+    """Group-stage matches with status + actual goals (no predictions needed).
+
+    Standings are a FACT, decoupled from the model: returns every stored group
+    match so the table can show all teams (group membership is derived from
+    fixtures, not teams.group_label). The caller counts only status='final'.
+    """
+    return (
+        get_client()
+        .table("matches")
+        .select("match_id,group_label,home_team,away_team,status,home_goals,away_goals")
+        .eq("stage", "group")
+        .execute()
+        .data
+    )
+
+
+def upsert_group_standings(rows: list[dict]) -> int:
+    """Upsert to group_standings on_conflict=team_id. Idempotent."""
+    if rows:
+        get_client().table("group_standings").upsert(
+            rows, on_conflict="team_id"
+        ).execute()
+    return len(rows)
+

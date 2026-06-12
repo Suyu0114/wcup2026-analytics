@@ -126,3 +126,47 @@ export interface FreshnessSummary {
   sim_computed_at: string | null;
   unavailable: boolean;
 }
+
+// P8 — fixtures & results (facts; decoupled from model/odds). All stages fetched so
+// the UI can switch on `stage` (group rows vs knockout-TBD placeholder).
+export interface FixtureView {
+  match_id: string;
+  stage: string;
+  group_label: string | null;
+  kickoff_utc: string;
+  status: string; // 'scheduled' | 'live' | 'final'
+  home: TeamRef;
+  away: TeamRef;
+  home_goals: number | null; // null until the match is played/settled
+  away_goals: number | null;
+}
+
+export interface FixturesResponse {
+  fixtures: FixtureView[];
+  unavailable: boolean;
+}
+
+// P8 — actual group standings (a FACT computed from results, not a model output;
+// no model_version). Display tiebreaker Pts→GD→GF→H2H, then `tied` (engine/standings.py).
+export interface StandingRow {
+  team_id: string;
+  name_en: string;
+  name_zh: string | null;
+  group_label: string;
+  played: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  gf: number;
+  ga: number;
+  gd: number;
+  pts: number;
+  rank: number;
+  tied: boolean; // unresolved level with an adjacent team (footnote-worthy)
+}
+
+export interface StandingsResponse {
+  groups: Record<string, StandingRow[]>;
+  computed_at: string | null;
+  unavailable: boolean;
+}
