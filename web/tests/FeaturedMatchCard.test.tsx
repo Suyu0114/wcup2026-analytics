@@ -3,6 +3,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { screen, cleanup } from '@testing-library/react';
 import FeaturedMatchCard from '../components/FeaturedMatchCard';
 import type { MatchView } from '../lib/types';
+import { topScorelines } from '../lib/scorelines';
 import { renderWithIntl, en } from './testUtils';
 
 afterEach(cleanup);
@@ -64,11 +65,17 @@ describe('FeaturedMatchCard (v2, market-led)', () => {
     expect(screen.getByText(en.featured.riskDisclaimer)).toBeTruthy();
   });
 
-  it('keeps exactly one model trace: the scoreline hint with an experimental tag', () => {
+  it('keeps exactly one model trace: top-5 scoreline chips with an experimental tag', () => {
     renderCard(match);
-    expect(screen.getByText(new RegExp(en.featured.scorelineHint.split('{lines}')[0].trim()))).toBeTruthy();
+    expect(screen.getByText(en.featured.scorelineLabel)).toBeTruthy();
     expect(screen.getAllByText(en.common.experimental).length).toBe(1);
     expect(screen.getByText(`${en.featured.fullModelLink} →`)).toBeTruthy();
+    // exactly 5 chips, each "home-away · pct" — the top-5 of the fixture lambdas
+    const top5 = topScorelines(match.model!.lambda_home, match.model!.lambda_away, 5);
+    expect(top5).toHaveLength(5);
+    for (const s of top5) {
+      expect(screen.getByText(new RegExp(`^${s.home}-${s.away} ·`))).toBeTruthy();
+    }
   });
 
   it('reminder uses the MARKET favourite: USA not-win = 1 − 45.7% ≈ 54%', () => {
@@ -91,12 +98,12 @@ describe('FeaturedMatchCard (v2, market-led)', () => {
     expect(screen.queryByText(en.featured.riskHeading)).toBeNull();
     expect(screen.queryByText(en.featured.tierSteady)).toBeNull();
     expect(screen.queryByText(/chance of not winning/)).toBeNull();
-    expect(screen.getByText(new RegExp(en.featured.scorelineHint.split('{lines}')[0].trim()))).toBeTruthy();
+    expect(screen.getByText(en.featured.scorelineLabel)).toBeTruthy();
   });
 
-  it('no model → no scoreline hint, market content unaffected', () => {
+  it('no model → no scoreline chips, market content unaffected', () => {
     renderCard({ ...match, model: null, divergence: null });
-    expect(screen.queryByText(new RegExp(en.featured.scorelineHint.split('{lines}')[0].trim()))).toBeNull();
+    expect(screen.queryByText(en.featured.scorelineLabel)).toBeNull();
     expect(screen.getByText(en.featured.tierSteady)).toBeTruthy();
   });
 });

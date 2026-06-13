@@ -53,7 +53,7 @@
     "selOver": "Over {point}",
     "selUnder": "Under {point}",
     "riskDisclaimer": "Tiers reflect market probability only — they say nothing about whether a price is good; judge that with the EV calculator. Not betting advice.",
-    "scorelineHint": "Model's most likely scores: {lines}",
+    "scorelineLabel": "Model's most likely scores",
     "fullModelLink": "Full model predictions",
     "hostAdvantage": "Host home advantage ≈ +{elo} Elo (already in the model)",
     "notWinReminder": "{team} still has roughly a {pct} chance of not winning — bet within your means.",

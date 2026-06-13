@@ -53,7 +53,7 @@
     "selOver": "大 {point}",
     "selUnder": "小 {point}",
     "riskDisclaimer": "分級僅依市場機率，與賠率好壞無關——價格划算與否請用 EV 計算機。非投注建議。",
-    "scorelineHint": "模型最可能比分：{lines}",
+    "scorelineLabel": "模型最可能比分",
     "fullModelLink": "看完整模型預測",
     "hostAdvantage": "地主主場優勢約 +{elo} Elo（已計入模型）",
     "notWinReminder": "{team} 仍有約 {pct} 的機率不贏——量力而為。",

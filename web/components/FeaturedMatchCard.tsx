@@ -77,11 +77,8 @@ export default function FeaturedMatchCard({
   const notWin = novig === null ? null : 1 - Math.max(novig.home, novig.away);
 
   const scorelines = match.model
-    ? topScorelines(match.model.lambda_home, match.model.lambda_away, 2)
+    ? topScorelines(match.model.lambda_home, match.model.lambda_away, 5)
     : null;
-  const scorelineText = scorelines
-    ?.map((s) => `${s.home}-${s.away} (${formatPercent(s.p, 0)})`)
-    .join(locale === 'zh-TW' ? '、' : ', ');
 
   return (
     <article className="flex flex-col gap-3 rounded-xl border border-sky-200 bg-gradient-to-b from-sky-50/60 to-white p-5 shadow-sm">
@@ -172,14 +169,26 @@ export default function FeaturedMatchCard({
         </p>
       )}
 
-      {scorelineText && (
-        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-600">
-          <span>{t('featured.scorelineHint', { lines: scorelineText })}</span>
-          <ExperimentalTag />
-          <Link href="/matches" className="text-sky-700 hover:underline">
+      {scorelines && (
+        <div className="space-y-1.5 text-sm text-slate-600">
+          <div className="flex items-center gap-2">
+            <span>{t('featured.scorelineLabel')}</span>
+            <ExperimentalTag />
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {scorelines.map((s) => (
+              <span
+                key={`${s.home}-${s.away}`}
+                className="inline-block rounded bg-slate-100 px-1.5 py-0.5 text-xs tabular-nums text-slate-600"
+              >
+                {s.home}-{s.away} · {formatPercent(s.p, 0)}
+              </span>
+            ))}
+          </div>
+          <Link href="/matches" className="inline-block text-sky-700 hover:underline">
             {t('featured.fullModelLink')} →
           </Link>
-        </p>
+        </div>
       )}
 
       {favoured && notWin !== null && (
