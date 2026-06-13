@@ -28,6 +28,8 @@ export interface Freshness {
 
 export interface MatchModel {
   model_version: string;
+  lambda_home: number;
+  lambda_away: number;
   p_home: number;
   p_draw: number;
   p_away: number;
@@ -39,6 +41,8 @@ export interface MatchModel {
 
 export interface MatchMarket {
   pinnacle_novig: { home: number; draw: number; away: number } | null;
+  // Pinnacle totals main line, de-vig'd (featured-card risk tiers / display).
+  totals: { point: number; over: number; under: number } | null;
   best_h2h: H2HBest | null;
   freshness: Freshness | null;
 }

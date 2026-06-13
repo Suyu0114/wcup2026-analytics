@@ -127,8 +127,23 @@ function buildMatchMarket(rows: OddsRow[]): MatchMarket | null {
     if (cur === null || r.decimal_odds > cur.decimal) best[r.outcome] = { book: r.bookmaker, decimal: r.decimal_odds };
   }
 
+  // pinnacle totals main line, de-vig (featured-card display; same main-line rule as /value)
+  let totals: MatchMarket['totals'] = null;
+  const mainPoint = pinnacleMainPoint(rows);
+  if (mainPoint !== null) {
+    const pin: Record<string, number> = {};
+    for (const r of rows) {
+      if (r.bookmaker === PINNACLE && r.market === 'totals' && r.point === mainPoint) pin[r.outcome] = r.decimal_odds;
+    }
+    if (pin.over !== undefined && pin.under !== undefined) {
+      const p = novig({ over: pin.over, under: pin.under });
+      totals = { point: mainPoint, over: p.over, under: p.under };
+    }
+  }
+
   return {
     pinnacle_novig: pinnacleNovig,
+    totals,
     best_h2h: { home: best.home, draw: best.draw, away: best.away },
     freshness: freshnessOf(rows.filter((r) => r.bookmaker === PINNACLE)),
   };
@@ -147,7 +162,7 @@ export async function getMatches(): Promise<MatchesResponse> {
           .eq('stage', 'group'),
         client
           .from('match_predictions')
-          .select('match_id,p_home,p_draw,p_away,p_over_2_5,p_btts,exp_total_goals')
+          .select('match_id,lambda_home,lambda_away,p_home,p_draw,p_away,p_over_2_5,p_btts,exp_total_goals')
           .eq('model_version', MODEL_VERSION),
       ]);
     if (te || me || pe) throw te || me || pe;
@@ -179,6 +194,8 @@ export async function getMatches(): Promise<MatchesResponse> {
       const model = pred
         ? {
             model_version: MODEL_VERSION,
+            lambda_home: Number(pred.lambda_home),
+            lambda_away: Number(pred.lambda_away),
             p_home: Number(pred.p_home),
             p_draw: Number(pred.p_draw),
             p_away: Number(pred.p_away),

@@ -1,17 +1,27 @@
 import { getTranslations, setRequestLocale } from 'next-intl/server';
-import { Link } from '@/lib/routing';
+import { Link, type Locale } from '@/lib/routing';
 import Disclaimer from '@/components/Disclaimer';
-import { getFreshnessSummary } from '@/lib/data';
+import FeaturedMatchCard from '@/components/FeaturedMatchCard';
+import { getFreshnessSummary, getMatches } from '@/lib/data';
+import { getManualResults } from '@/lib/adminServer';
+import { selectFeatured, isKickoffToday } from '@/lib/featured';
 import { formatDateShort, siteTz } from '@/lib/format';
 
-export const revalidate = 1800; // time-based ISR (spec §2 / Issue 2)
+// Featured cards must advance the moment a result is entered (manual_results) —
+// force-dynamic like /results and /standings (P8), no 30-min ISR lag.
+export const dynamic = 'force-dynamic';
 
 export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   setRequestLocale(locale);
   const t = await getTranslations({ locale });
-  const fresh = await getFreshnessSummary();
+  const [{ matches }, manualResults, fresh] = await Promise.all([
+    getMatches(),
+    getManualResults(),
+    getFreshnessSummary(),
+  ]);
   const tz = siteTz(locale);
+  const featured = selectFeatured(matches, manualResults);
 
   const cards = [
     { href: '/matches' as const, title: t('home.cardMatchesTitle'), desc: t('home.cardMatchesDesc') },
@@ -26,6 +36,25 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
         <p className="text-slate-600">{t('home.heroSubtitle')}</p>
         <Disclaimer />
       </section>
+
+      {featured.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+            {t('featured.heading')}
+          </h2>
+          <div className="grid items-stretch gap-4 lg:grid-cols-3">
+            {featured.map((m) => (
+              <FeaturedMatchCard
+                key={m.match_id}
+                match={m}
+                locale={locale as Locale}
+                tz={tz}
+                isToday={isKickoffToday(m.kickoff_utc, tz)}
+              />
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="grid gap-4 sm:grid-cols-3">
         {cards.map((c) => (
