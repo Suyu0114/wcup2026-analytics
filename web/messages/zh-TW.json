@@ -41,6 +41,26 @@
     "cardValueDesc": "輸入你的賠率，比 Pinnacle 去 vig 線，算 EV 與 ¼ Kelly。",
     "freshnessHeading": "資料新鮮度"
   },
+  "featured": {
+    "heading": "近期賽事分析",
+    "todayBadge": "今日",
+    "riskHeading": "風險分級（依市場機率）",
+    "tierSteady": "穩健",
+    "tierMedium": "中等",
+    "tierRisky": "高風險",
+    "selDc": "{team} 不敗（勝或和）",
+    "selWin": "{team} 勝",
+    "selOver": "大 {point}",
+    "selUnder": "小 {point}",
+    "riskDisclaimer": "分級僅依市場機率，與賠率好壞無關——價格划算與否請用 EV 計算機。非投注建議。",
+    "scorelineHint": "模型最可能比分：{lines}",
+    "fullModelLink": "看完整模型預測",
+    "hostAdvantage": "地主主場優勢約 +{elo} Elo（已計入模型）",
+    "notWinReminder": "{team} 仍有約 {pct} 的機率不贏——量力而為。",
+    "tagline_CA": "Go Canada Go!",
+    "tagline_US": "Go USA!",
+    "tagline_MX": "¡Vamos México!"
+  },
   "matches": {
     "title": "比賽預測",
     "subtitle": "小組賽模型機率，並列市場去 vig 機率。",

@@ -41,6 +41,26 @@
     "cardValueDesc": "Enter your odds, compare to Pinnacle de-vig, get EV and ¼ Kelly.",
     "freshnessHeading": "Data freshness"
   },
+  "featured": {
+    "heading": "Featured: next matches",
+    "todayBadge": "Today",
+    "riskHeading": "Risk tiers (by market probability)",
+    "tierSteady": "Steady",
+    "tierMedium": "Medium",
+    "tierRisky": "High risk",
+    "selDc": "{team} unbeaten (win or draw)",
+    "selWin": "{team} to win",
+    "selOver": "Over {point}",
+    "selUnder": "Under {point}",
+    "riskDisclaimer": "Tiers reflect market probability only — they say nothing about whether a price is good; judge that with the EV calculator. Not betting advice.",
+    "scorelineHint": "Model's most likely scores: {lines}",
+    "fullModelLink": "Full model predictions",
+    "hostAdvantage": "Host home advantage ≈ +{elo} Elo (already in the model)",
+    "notWinReminder": "{team} still has roughly a {pct} chance of not winning — bet within your means.",
+    "tagline_CA": "Go Canada Go!",
+    "tagline_US": "Go USA!",
+    "tagline_MX": "¡Vamos México!"
+  },
   "matches": {
     "title": "Match Predictions",
     "subtitle": "Group-stage model probabilities, alongside market de-vig probabilities.",
