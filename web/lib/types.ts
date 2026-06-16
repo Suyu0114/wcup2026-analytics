@@ -1,6 +1,7 @@
 // Shared API/view types (spec §4). model and market are kept in separate objects so the
 // frontend can never mix them into the value path (D5 / TU6).
 import type { Outcome } from './divergence';
+import type { UpsetTier } from './constants';
 
 export interface TeamRef {
   team_id: string;
@@ -172,5 +173,59 @@ export interface StandingRow {
 export interface StandingsResponse {
   groups: Record<string, StandingRow[]>;
   computed_at: string | null;
+  unavailable: boolean;
+}
+
+// P9 — prediction track record. Settled group matches scored against actual results.
+// Predictions are the frozen pre-tournament model (predict is NOT re-run per match — see
+// docs/manual-commands.md / docs/P9-spec.md §2), so these reproduce the PRE-MATCH prediction
+// and the SAME upset tag the featured card showed. Model is always shown alongside the market
+// (trap #7); the upset tag's `result` leads the "did it actually upset" read.
+export interface TrackRecordSide {
+  p_home: number;
+  p_draw: number;
+  p_away: number;
+  pick: Outcome; // argmax (argmaxOutcome)
+  hit: boolean; // pick === actual outcome
+  brier: number;
+}
+
+export interface TrackRecordRow {
+  match_id: string;
+  stage: string;
+  group_label: string | null;
+  kickoff_utc: string;
+  home: TeamRef;
+  away: TeamRef;
+  home_goals: number;
+  away_goals: number;
+  actual: Outcome;
+  model: TrackRecordSide;
+  market: TrackRecordSide | null; // null when no Pinnacle de-vig (counted in model n, not market n)
+  // present only when the match was TAGGED upset-risk (computeUpset tier !== null)
+  upset: { tier: UpsetTier; weaker: string; result: 'won' | 'drew' | 'lost' } | null;
+}
+
+export interface TrackRecordTierStat {
+  total: number;
+  notLost: number; // weaker won or drew
+  won: number;
+}
+
+export interface TrackRecordSummary {
+  // aggregate pick accuracy + mean Brier; market on its own (smaller) n, mirroring calibrate.py
+  model: { n: number; correct: number; brier: number } | null;
+  market: { n: number; correct: number; brier: number } | null;
+  upset: {
+    total: number;
+    notLost: number;
+    won: number;
+    byTier: Record<UpsetTier, TrackRecordTierStat>;
+  };
+}
+
+export interface TrackRecordResponse {
+  rows: TrackRecordRow[]; // most-recent first
+  summary: TrackRecordSummary;
   unavailable: boolean;
 }

@@ -2,7 +2,8 @@ import 'server-only';
 import { getSupabase } from './supabaseServer';
 import { novig } from './devig';
 import { computeUpset } from './upset';
-import { computeDivergence } from './divergence';
+import { computeDivergence, argmaxOutcome } from './divergence';
+import { result1x2, brier, classifyUpset } from './score';
 import { isQuarterLine } from './value';
 import {
   MODEL_VERSION,
@@ -10,6 +11,7 @@ import {
   FRESH_WINDOW_MS,
   KELLY_UNLOCK_N,
   KELLY_UNLOCK_BRIER_RATIO,
+  type UpsetTier,
 } from './constants';
 import type {
   MatchesResponse,
@@ -27,6 +29,10 @@ import type {
   FixtureView,
   StandingsResponse,
   StandingRow,
+  TrackRecordResponse,
+  TrackRecordRow,
+  TrackRecordSummary,
+  TrackRecordTierStat,
 } from './types';
 
 interface OddsRow {
@@ -535,6 +541,172 @@ export async function getValueMarket(
     };
   } catch {
     return base;
+  }
+}
+
+const ZERO_TIER: TrackRecordTierStat = { total: 0, notLost: 0, won: 0 };
+
+function emptyTrackSummary(): TrackRecordSummary {
+  return {
+    model: null,
+    market: null,
+    upset: { total: 0, notLost: 0, won: 0, byTier: { 'A+': { ...ZERO_TIER }, A: { ...ZERO_TIER }, B: { ...ZERO_TIER } } },
+  };
+}
+
+function summarizeTrackRecord(rows: TrackRecordRow[]): TrackRecordSummary {
+  const model = rows.length
+    ? {
+        n: rows.length,
+        correct: rows.filter((r) => r.model.hit).length,
+        brier: rows.reduce((s, r) => s + r.model.brier, 0) / rows.length,
+      }
+    : null;
+  const withMarket = rows.filter((r) => r.market !== null);
+  const market = withMarket.length
+    ? {
+        n: withMarket.length,
+        correct: withMarket.filter((r) => r.market!.hit).length,
+        brier: withMarket.reduce((s, r) => s + r.market!.brier, 0) / withMarket.length,
+      }
+    : null;
+  const tagged = rows.filter((r) => r.upset !== null);
+  const byTier = {} as Record<UpsetTier, TrackRecordTierStat>;
+  for (const tier of ['A+', 'A', 'B'] as UpsetTier[]) {
+    const g = tagged.filter((r) => r.upset!.tier === tier);
+    byTier[tier] = {
+      total: g.length,
+      notLost: g.filter((r) => r.upset!.result !== 'lost').length,
+      won: g.filter((r) => r.upset!.result === 'won').length,
+    };
+  }
+  return {
+    model,
+    market,
+    upset: {
+      total: tagged.length,
+      notLost: tagged.filter((r) => r.upset!.result !== 'lost').length,
+      won: tagged.filter((r) => r.upset!.result === 'won').length,
+      byTier,
+    },
+  };
+}
+
+/** Prediction track record (P9): settled group matches scored against actual results, model
+ * shown alongside the market (trap #7), plus the upset-tag audit. Predictions are the frozen
+ * pre-tournament model (predict is not re-run per match — P9-spec §2), so each row reproduces
+ * the PRE-MATCH prediction and the SAME upset tag the featured card showed. Group stage only
+ * (where predictions/upset tags surface); knockout is a later extension (drop the stage filter).
+ * Any failure → unavailable (graceful, §6.6). */
+export async function getTrackRecord(): Promise<TrackRecordResponse> {
+  const empty: TrackRecordResponse = { rows: [], summary: emptyTrackSummary(), unavailable: true };
+  const client = getSupabase();
+  if (!client) return empty;
+  try {
+    const [{ data: teams, error: te }, { data: matches, error: me }, { data: preds, error: pe }] =
+      await Promise.all([
+        client.from('teams').select('team_id,name_en,name_zh,elo'),
+        client
+          .from('matches')
+          .select('match_id,stage,group_label,home_team,away_team,kickoff_utc,status,home_goals,away_goals')
+          .eq('stage', 'group')
+          .eq('status', 'final'),
+        client
+          .from('match_predictions')
+          .select('match_id,p_home,p_draw,p_away')
+          .eq('model_version', MODEL_VERSION),
+      ]);
+    if (te || me || pe) throw te || me || pe;
+
+    // settled = final AND both goals present (same gate as etl/calibrate.py)
+    const settled = (matches ?? []).filter((m) => m.home_goals !== null && m.away_goals !== null);
+    const teamMap = new Map((teams ?? []).map((t) => [t.team_id, t]));
+    const predMap = new Map((preds ?? []).map((p) => [p.match_id, p]));
+
+    // odds optional — failure must not hide the track record (graceful, §6.6)
+    let oddsByMatch = new Map<string, OddsRow[]>();
+    const ids = settled.map((m) => m.match_id);
+    try {
+      if (ids.length > 0) {
+        const oddsRows = await fetchLatestOdds(client, ids);
+        oddsByMatch = oddsRows.reduce((acc, r) => {
+          (acc.get(r.match_id) ?? acc.set(r.match_id, []).get(r.match_id)!).push(r);
+          return acc;
+        }, new Map<string, OddsRow[]>());
+      }
+    } catch {
+      oddsByMatch = new Map();
+    }
+
+    const rows: TrackRecordRow[] = [];
+    for (const m of settled) {
+      const home = teamMap.get(m.home_team);
+      const away = teamMap.get(m.away_team);
+      const pred = predMap.get(m.match_id);
+      if (!home || !away || !pred) continue; // need both teams + a pre-match prediction to score
+      const hg = Number(m.home_goals);
+      const ag = Number(m.away_goals);
+      const actual = result1x2(hg, ag);
+
+      const modelT = { home: Number(pred.p_home), draw: Number(pred.p_draw), away: Number(pred.p_away) };
+      const modelPick = argmaxOutcome(modelT);
+      const model = {
+        p_home: modelT.home,
+        p_draw: modelT.draw,
+        p_away: modelT.away,
+        pick: modelPick,
+        hit: modelPick === actual,
+        brier: brier(modelT, actual),
+      };
+
+      const novigT = buildMatchMarket(oddsByMatch.get(m.match_id) ?? [])?.pinnacle_novig ?? null;
+      const market = novigT
+        ? (() => {
+            const marketPick = argmaxOutcome(novigT);
+            return {
+              p_home: novigT.home,
+              p_draw: novigT.draw,
+              p_away: novigT.away,
+              pick: marketPick,
+              hit: marketPick === actual,
+              brier: brier(novigT, actual),
+            };
+          })()
+        : null;
+
+      const up = computeUpset({
+        homeTeam: m.home_team,
+        awayTeam: m.away_team,
+        eloHome: Number(home.elo),
+        eloAway: Number(away.elo),
+        pHome: modelT.home,
+        pDraw: modelT.draw,
+        pAway: modelT.away,
+      });
+      const upset =
+        up.tier && up.weaker
+          ? { tier: up.tier, weaker: up.weaker, result: classifyUpset(up.weaker, m.home_team, hg, ag) }
+          : null;
+
+      rows.push({
+        match_id: m.match_id,
+        stage: m.stage,
+        group_label: m.group_label,
+        kickoff_utc: m.kickoff_utc,
+        home: { team_id: home.team_id, name_en: home.name_en, name_zh: home.name_zh, elo: Number(home.elo) },
+        away: { team_id: away.team_id, name_en: away.name_en, name_zh: away.name_zh, elo: Number(away.elo) },
+        home_goals: hg,
+        away_goals: ag,
+        actual,
+        model,
+        market,
+        upset,
+      });
+    }
+    rows.sort((a, b) => b.kickoff_utc.localeCompare(a.kickoff_utc)); // most recent first
+    return { rows, summary: summarizeTrackRecord(rows), unavailable: false };
+  } catch {
+    return empty;
   }
 }
 
