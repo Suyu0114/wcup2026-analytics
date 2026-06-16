@@ -6,6 +6,7 @@ import MobileNav from './MobileNav';
 const NAV_ITEMS = [
   { href: '/matches', labelKey: 'nav.matches' },
   { href: '/results', labelKey: 'nav.results' },
+  { href: '/track-record', labelKey: 'nav.trackRecord' },
   { href: '/standings', labelKey: 'nav.standings' },
   { href: '/groups', labelKey: 'nav.groups' },
   { href: '/value', labelKey: 'nav.value' },
