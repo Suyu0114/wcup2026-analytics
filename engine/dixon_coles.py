@@ -10,7 +10,12 @@ import math
 
 from scipy.stats import poisson
 
-MODEL_VERSION = "dc-v1.1"
+MODEL_VERSION = "dc-v1.2"
+# dc-v1.2 (P10): SAME fitted constants as v1.1 below — only the Elo snapshot input
+# differs (updated post-round). `predict --only-unsettled` re-predicts unsettled
+# matches; settled matches retain their frozen v1.1 predictions. Bump in lockstep
+# with web/lib/constants.ts MODEL_VERSION (CLAUDE.md trap #8). Pre-tournament
+# baseline stays queryable as web/lib/constants.ts BASELINE_VERSION ('dc-v1.1').
 
 # FITTED constants (P6 A2) — no longer the §5.0 priors.
 # Provenance: fit/fit_dc.py — martj42 intl results (CC0) × Elo yearly snapshots

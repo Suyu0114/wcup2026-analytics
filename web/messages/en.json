@@ -30,6 +30,11 @@
     "value": "EV Calculator",
     "guide": "Guide"
   },
+  "modelVersion": {
+    "label": "Model Version",
+    "v1_1": "v1.1 Pre-tournament",
+    "v1_2": "v1.2 Round 2 Update"
+  },
   "home": {
     "heroTitle": "World Cup 2026 Predictions & Analytics",
     "heroSubtitle": "Probabilities from World Football Elo + Dixon–Coles, shown alongside market odds.",

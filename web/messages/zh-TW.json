@@ -30,6 +30,11 @@
     "value": "EV 計算機",
     "guide": "教學"
   },
+  "modelVersion": {
+    "label": "模型版本",
+    "v1_1": "v1.1 賽前預測",
+    "v1_2": "v1.2 第二輪更新"
+  },
   "home": {
     "heroTitle": "世界盃 2026 賽事預測與分析",
     "heroSubtitle": "以 World Football Elo + Dixon–Coles 模型產生機率，並與市場賠率並列。",

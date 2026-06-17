@@ -1,7 +1,27 @@
 // Shared constants (spec §4 / §6.3).
 
-// Active model version — bump together with engine.dixon_coles.MODEL_VERSION (P6 TA5).
-export const MODEL_VERSION = 'dc-v1.1';
+// Active model version (latest) — bump together with engine.dixon_coles.MODEL_VERSION (P6 TA5).
+export const MODEL_VERSION = 'dc-v1.2';
+
+// Frozen pre-tournament baseline. Track-record + the v1.1 switcher label pin to THIS,
+// NOT to MODEL_VERSION — so bumping the active version never re-points settled-match
+// queries at a version that has no settled-match predictions (P10 B1 regression guard).
+export const BASELINE_VERSION = 'dc-v1.1';
+
+// All deployable model versions (newest first), for ModelVersionSwitcher (P10 §4.1).
+// i18nKey is dot-free on purpose: next-intl splits message keys on '.', so a literal
+// 'dc-v1.1' key would resolve as nested dc-v1 → 1 and fail (P10 B2). Map id → dot-free key.
+export const MODEL_VERSIONS = [
+  { id: 'dc-v1.2', i18nKey: 'v1_2' },
+  { id: 'dc-v1.1', i18nKey: 'v1_1' },
+] as const;
+export type ModelVersionId = (typeof MODEL_VERSIONS)[number]['id'];
+
+// Resolve a (possibly undefined / unknown) ?v= param to a valid version id, defaulting
+// to the latest. Keeps page/data/component version handling in one place (P10 §4).
+export function resolveModelVersion(v: string | undefined | null): ModelVersionId {
+  return MODEL_VERSIONS.some((m) => m.id === v) ? (v as ModelVersionId) : MODEL_VERSION;
+}
 
 // Tiered upset thresholds (P1 §5.4 / spec §6.3) — cascade A+ → A → B (first match wins).
 // Adjustable, not hardcoded in the engine. Calibrated for dc-v1.1 fitted params.

@@ -10,6 +10,7 @@ export async function GET(request: Request) {
   const matchId = searchParams.get('match_id');
   const market = searchParams.get('market');
   const outcome = searchParams.get('outcome');
+  const modelVersion = searchParams.get('v') ?? undefined; // P10: model side follows the switcher
 
   if (!matchId || (market !== 'h2h' && market !== 'totals') || !outcome) {
     return NextResponse.json(
@@ -18,6 +19,6 @@ export async function GET(request: Request) {
     );
   }
 
-  const data = await getValueMarket(matchId, market, outcome);
+  const data = await getValueMarket(matchId, market, outcome, modelVersion);
   return NextResponse.json(data, { status: 200, headers: { 'Cache-Control': 'no-store' } });
 }

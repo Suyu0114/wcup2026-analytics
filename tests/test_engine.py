@@ -77,7 +77,11 @@ def test_t9_we_calibration_anchors_v10_priors(diff, anchor, monkeypatch):
 
 
 def test_ta4_deployed_constants_match_fit_report():
-    """Provenance pin: engine constants = fit/REPORT.md deployed row (P6 A2)."""
+    """Provenance pin: engine constants = fit/REPORT.md deployed row (P6 A2).
+
+    P10 bumped MODEL_VERSION to dc-v1.2 (updated Elo snapshot input) but REUSES the
+    same fitted constants as v1.1 — so the constants pin below is unchanged.
+    """
     import engine.dixon_coles as dc
-    assert dc.MODEL_VERSION == "dc-v1.1"
+    assert dc.MODEL_VERSION == "dc-v1.2"
     assert (dc.BASE, dc.GAMMA, dc.HFA_ELO, dc.RHO) == (1.2014, 0.5478, 84.5, -0.12)

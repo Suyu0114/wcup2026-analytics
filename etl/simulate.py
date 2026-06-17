@@ -4,10 +4,11 @@ Reads group matches + predictions + Elo from Supabase, runs Monte Carlo
 simulation (engine, pure function), and upserts per-team advancement
 probabilities to ``group_sim``. Idempotent.
 
-    python -m etl.simulate              # simulate + write to Supabase
-    python -m etl.simulate --dry-run    # simulate + summarize, no DB
-    python -m etl.simulate --n 50000    # override simulation count
-    python -m etl.simulate --seed 42    # deterministic (for tests/debugging)
+    python -m etl.simulate                          # simulate + write to Supabase
+    python -m etl.simulate --dry-run                # simulate + summarize, no DB
+    python -m etl.simulate --n 50000                # override simulation count
+    python -m etl.simulate --seed 42                # deterministic (for tests/debugging)
+    python -m etl.simulate --model-version dc-v1.1  # P10: re-sim a specific version
 """
 from __future__ import annotations
 
@@ -20,9 +21,15 @@ from engine.group_sim import GroupMatch, SimConfig, simulate_groups
 from etl import db
 
 
-def run(dry_run: bool = False, n: int = 10_000, seed: int | None = None) -> list[dict]:
+def run(
+    dry_run: bool = False,
+    n: int = 10_000,
+    seed: int | None = None,
+    model_version: str | None = None,
+) -> list[dict]:
+    mv = model_version or MODEL_VERSION
     # 1. Read group-stage matches + lambdas + actual scores (settled)
-    raw_matches = db.fetch_group_matches_with_predictions(model_version=MODEL_VERSION)
+    raw_matches = db.fetch_group_matches_with_predictions(model_version=mv)
     # Validate: 12 groups × 4 teams
     groups: dict[str, set[str]] = {}
     for m in raw_matches:
@@ -61,7 +68,7 @@ def run(dry_run: bool = False, n: int = 10_000, seed: int | None = None) -> list
 
     # 3. Print summary
     settled_count = sum(1 for m in matches if m.is_settled)
-    print(f"Simulation: N={n}, seed={seed}, model={MODEL_VERSION}")
+    print(f"Simulation: N={n}, seed={seed}, model={mv}")
     print(f"  Settled matches: {settled_count}/72 (locked)")
     print(f"  Top 10 by P(advance):")
     for r in sorted(results, key=lambda x: -x.p_advance)[:10]:
@@ -82,7 +89,9 @@ def run(dry_run: bool = False, n: int = 10_000, seed: int | None = None) -> list
             "p_third_qual": float(r.p_third_qual),
             "p_advance": float(r.p_advance),
             "sim_n": r.sim_n,
-            "model_version": r.model_version,
+            # stamp the simulated version (mv), not the engine constant — lets
+            # `--model-version dc-v1.1` write v1.1 group_sim rows (P10 D-decision).
+            "model_version": mv,
             "computed_at": now,
         }
         for r in results
@@ -107,8 +116,11 @@ def main() -> None:
                      help="number of simulations (default: 10000)")
     ap.add_argument("--seed", type=int, default=None,
                      help="RNG seed for reproducibility")
+    ap.add_argument("--model-version", type=str, default=None,
+                     help="model version whose predictions to simulate "
+                          "(default: engine MODEL_VERSION; P10: pass dc-v1.1 to re-sim baseline)")
     args = ap.parse_args()
-    run(dry_run=args.dry_run, n=args.n, seed=args.seed)
+    run(dry_run=args.dry_run, n=args.n, seed=args.seed, model_version=args.model_version)
 
 
 if __name__ == "__main__":
