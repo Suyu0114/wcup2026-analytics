@@ -50,9 +50,11 @@ interface ComputedResult {
 export default function ValueCalculator({
   matchOptions,
   defaults,
+  modelVersion,
 }: {
   matchOptions: MatchOption[];
   defaults?: CalculatorDefaults;
+  modelVersion?: string;
 }) {
   const t = useTranslations();
   const locale = useLocale();
@@ -84,8 +86,9 @@ export default function ValueCalculator({
     const ctrl = new AbortController();
     setLoading(true);
     setFetchError(false);
+    const vParam = modelVersion ? `&v=${encodeURIComponent(modelVersion)}` : '';
     fetch(
-      `/api/value/market?match_id=${encodeURIComponent(matchId)}&market=${market}&outcome=${outcome}`,
+      `/api/value/market?match_id=${encodeURIComponent(matchId)}&market=${market}&outcome=${outcome}${vParam}`,
       { signal: ctrl.signal },
     )
       .then((r) => r.json())
@@ -100,7 +103,7 @@ export default function ValueCalculator({
       })
       .finally(() => setLoading(false));
     return () => ctrl.abort();
-  }, [matchId, market, outcome]);
+  }, [matchId, market, outcome, modelVersion]);
 
   // P6 §3.7: the divergence screener lives on THIS page, so clicking a row is a same-page
   // navigation that does NOT remount the calculator — the useState initializers above only run

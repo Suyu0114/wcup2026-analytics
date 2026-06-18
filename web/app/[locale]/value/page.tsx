@@ -6,6 +6,7 @@ import { Link, type Locale } from '@/lib/routing';
 import ValueCalculator, { type CalculatorDefaults, type MatchOption } from '@/components/ValueCalculator';
 import DivergenceList from '@/components/DivergenceList';
 import EmptyState from '@/components/EmptyState';
+import ModelVersionSwitcher from '@/components/ModelVersionSwitcher';
 
 // Reading searchParams (screener prefill, P6 §3.7) makes this page dynamic.
 export default async function ValuePage({
@@ -13,13 +14,13 @@ export default async function ValuePage({
   searchParams,
 }: {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ match?: string; market?: string; outcome?: string }>;
+  searchParams: Promise<{ match?: string; market?: string; outcome?: string; v?: string }>;
 }) {
   const { locale } = await params;
   const sp = await searchParams;
   setRequestLocale(locale);
   const t = await getTranslations({ locale });
-  const { matches } = await getMatches();
+  const { matches } = await getMatches(sp.v);
 
   const options: MatchOption[] = matches.map((m) => {
     const home = displayTeamName(m.home, locale as Locale);
@@ -56,10 +57,12 @@ export default async function ValuePage({
         </Link>
       </header>
 
+      <ModelVersionSwitcher current={sp.v} />
+
       {options.length === 0 ? (
         <EmptyState message={t('common.dataUnavailable')} />
       ) : (
-        <ValueCalculator matchOptions={options} defaults={defaults} />
+        <ValueCalculator matchOptions={options} defaults={defaults} modelVersion={sp.v} />
       )}
 
       <DivergenceList rows={divergence} locale={locale as Locale} />

@@ -51,15 +51,20 @@ def fetch_team_elos() -> dict[str, float]:
     return {r["team_id"]: float(r["elo"]) for r in rows}
 
 
-def fetch_matches_to_predict() -> list[dict]:
-    """Matches with both teams set (all stored rows qualify; knockout TBD aren't stored yet)."""
-    return (
+def fetch_matches_to_predict(only_unsettled: bool = False) -> list[dict]:
+    """Matches with both teams set (all stored rows qualify; knockout TBD aren't stored yet).
+
+    If ``only_unsettled``, skip ``status='final'`` — P10 dc-v1.2 re-predicts only
+    matches not yet settled (settled ones keep their frozen baseline prediction).
+    """
+    q = (
         get_client()
         .table("matches")
         .select("match_id,home_team,away_team,is_host_home,is_host_away")
-        .execute()
-        .data
     )
+    if only_unsettled:
+        q = q.neq("status", "final")
+    return q.execute().data
 
 
 def fetch_teams() -> list[dict]:
@@ -317,8 +322,10 @@ def fetch_group_matches_with_predictions(model_version: str = "dc-v1.0") -> list
     """Join matches (stage='group') with match_predictions to get lambda_home/away.
 
     Also includes status, home_goals, away_goals for settled match locking (D3).
-    Validation: 72 group matches, all have lambda_home/away.
-    Settled matches (status='final') must have non-null goals (fail-loud).
+    Validation: 72 group matches; UNSETTLED matches must have a prediction for this
+    version. P10: dc-v1.2 only predicts unsettled matches, so SETTLED matches may lack
+    a prediction here — that's allowed (D3 locks them to the real score and never reads
+    lambda; a 0.0 placeholder is used). Settled matches must have non-null goals.
     """
     # Fetch group-stage matches
     matches = (
@@ -350,12 +357,14 @@ def fetch_group_matches_with_predictions(model_version: str = "dc-v1.0") -> list
     for m in matches:
         mid = m["match_id"]
         pred = pred_map.get(mid)
-        if pred is None:
+        is_settled = m["status"] == "final"
+        # P10: settled matches may lack a prediction for this version (dc-v1.2 only
+        # predicts unsettled). Fail loud only when an UNSETTLED match has no prediction.
+        if pred is None and not is_settled:
             raise ValueError(
                 f"Match {mid} has no prediction for model {model_version} (fail-loud)"
             )
         # Settled match validation (verify-don't-assume)
-        is_settled = m["status"] == "final"
         if is_settled:
             if m["home_goals"] is None or m["away_goals"] is None:
                 raise ValueError(
@@ -366,8 +375,10 @@ def fetch_group_matches_with_predictions(model_version: str = "dc-v1.0") -> list
             "group_label": m["group_label"],
             "home_team": m["home_team"],
             "away_team": m["away_team"],
-            "lambda_home": float(pred["lambda_home"]),
-            "lambda_away": float(pred["lambda_away"]),
+            # settled + no prediction → 0.0 placeholder. D3 locks the score and never
+            # reads lambda (engine/group_sim.py); 0.0 (not NaN) avoids silent numpy NaN.
+            "lambda_home": float(pred["lambda_home"]) if pred else 0.0,
+            "lambda_away": float(pred["lambda_away"]) if pred else 0.0,
             "is_settled": is_settled,
             "home_goals": int(m["home_goals"]) if m["home_goals"] is not None else None,
             "away_goals": int(m["away_goals"]) if m["away_goals"] is not None else None,

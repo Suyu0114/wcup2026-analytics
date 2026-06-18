@@ -2,6 +2,7 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { Link, type Locale } from '@/lib/routing';
 import Disclaimer from '@/components/Disclaimer';
 import FeaturedMatchCard from '@/components/FeaturedMatchCard';
+import ModelVersionSwitcher from '@/components/ModelVersionSwitcher';
 import { getFreshnessSummary, getMatches } from '@/lib/data';
 import { getManualResults } from '@/lib/adminServer';
 import { selectFeatured, isKickoffToday } from '@/lib/featured';
@@ -11,12 +12,19 @@ import { formatDateShort, siteTz } from '@/lib/format';
 // force-dynamic like /results and /standings (P8), no 30-min ISR lag.
 export const dynamic = 'force-dynamic';
 
-export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
+export default async function HomePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ locale: string }>;
+  searchParams: Promise<{ v?: string }>;
+}) {
   const { locale } = await params;
+  const { v } = await searchParams;
   setRequestLocale(locale);
   const t = await getTranslations({ locale });
   const [{ matches }, manualResults, fresh] = await Promise.all([
-    getMatches(),
+    getMatches(v),
     getManualResults(),
     getFreshnessSummary(),
   ]);
@@ -39,9 +47,12 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
 
       {featured.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-            {t('featured.heading')}
-          </h2>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+              {t('featured.heading')}
+            </h2>
+            <ModelVersionSwitcher current={v} />
+          </div>
           <div className="grid items-stretch gap-4 lg:grid-cols-3">
             {featured.map((m) => (
               <FeaturedMatchCard

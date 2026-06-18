@@ -3,8 +3,9 @@
 Reads team Elo + matches from Supabase, runs the Dixon–Coles engine, and upserts
 one row per (match, model_version). Idempotent.
 
-    python -m etl.predict             # compute + write to Supabase
-    python -m etl.predict --dry-run   # compute + summarize, no DB write
+    python -m etl.predict                  # compute + write to Supabase
+    python -m etl.predict --dry-run        # compute + summarize, no DB write
+    python -m etl.predict --only-unsettled # P10: re-predict only unsettled matches
 """
 from __future__ import annotations
 
@@ -26,9 +27,9 @@ def build_prediction_row(match: dict, elo_home: float, elo_away: float) -> dict:
     return row
 
 
-def run(dry_run: bool = False) -> list[dict]:
+def run(dry_run: bool = False, only_unsettled: bool = False) -> list[dict]:
     elos = db.fetch_team_elos()
-    matches = db.fetch_matches_to_predict()
+    matches = db.fetch_matches_to_predict(only_unsettled=only_unsettled)
 
     rows: list[dict] = []
     missing: list[str] = []
@@ -44,7 +45,8 @@ def run(dry_run: bool = False) -> list[dict]:
             f"predict: {len(missing)} matches reference teams with no Elo: {missing[:5]}"
         )
 
-    print(f"Predictions: {len(rows)} matches computed (model {MODEL_VERSION}).")
+    scope = "unsettled only" if only_unsettled else "all matches"
+    print(f"Predictions: {len(rows)} matches computed ({scope}, model {MODEL_VERSION}).")
     if dry_run:
         print("--dry-run: skipping match_predictions upsert.")
         return rows
@@ -57,8 +59,13 @@ def run(dry_run: bool = False) -> list[dict]:
 def main() -> None:
     ap = argparse.ArgumentParser(description="Prediction job (teams + matches -> match_predictions)")
     ap.add_argument("--dry-run", action="store_true", help="compute + summarize, no DB write")
+    ap.add_argument(
+        "--only-unsettled",
+        action="store_true",
+        help="predict only matches with status != 'final' (P10 dc-v1.2 re-predict)",
+    )
     args = ap.parse_args()
-    run(dry_run=args.dry_run)
+    run(dry_run=args.dry_run, only_unsettled=args.only_unsettled)
 
 
 if __name__ == "__main__":

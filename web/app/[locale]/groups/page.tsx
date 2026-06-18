@@ -4,14 +4,24 @@ import { siteTz, formatDateShort } from '@/lib/format';
 import type { Locale } from '@/lib/routing';
 import GroupTable from '@/components/GroupTable';
 import EmptyState from '@/components/EmptyState';
+import ModelVersionSwitcher from '@/components/ModelVersionSwitcher';
 
-export const revalidate = 1800;
+// Reading searchParams (?v model version, P10) opts this route into dynamic rendering;
+// force it explicitly (replaces the prior 30-min ISR).
+export const dynamic = 'force-dynamic';
 
-export default async function GroupsPage({ params }: { params: Promise<{ locale: string }> }) {
+export default async function GroupsPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ locale: string }>;
+  searchParams: Promise<{ v?: string }>;
+}) {
   const { locale } = await params;
+  const { v } = await searchParams;
   setRequestLocale(locale);
   const t = await getTranslations({ locale });
-  const data = await getGroups();
+  const data = await getGroups(v);
   const tz = siteTz(locale);
   const groupKeys = Object.keys(data.groups).sort();
 
@@ -27,6 +37,8 @@ export default async function GroupsPage({ params }: { params: Promise<{ locale:
           </p>
         )}
       </header>
+
+      <ModelVersionSwitcher current={v} />
 
       {data.unavailable ? (
         <EmptyState message={t('common.dataUnavailable')} />

@@ -7,6 +7,8 @@ import { result1x2, brier, classifyUpset } from './score';
 import { isQuarterLine } from './value';
 import {
   MODEL_VERSION,
+  BASELINE_VERSION,
+  resolveModelVersion,
   PINNACLE,
   FRESH_WINDOW_MS,
   KELLY_UNLOCK_N,
@@ -155,7 +157,8 @@ function buildMatchMarket(rows: OddsRow[]): MatchMarket | null {
   };
 }
 
-export async function getMatches(): Promise<MatchesResponse> {
+export async function getMatches(modelVersion?: string): Promise<MatchesResponse> {
+  const mv = resolveModelVersion(modelVersion);
   const client = getSupabase();
   if (!client) return { matches: [], unavailable: true };
   try {
@@ -169,7 +172,7 @@ export async function getMatches(): Promise<MatchesResponse> {
         client
           .from('match_predictions')
           .select('match_id,lambda_home,lambda_away,p_home,p_draw,p_away,p_over_2_5,p_btts,exp_total_goals')
-          .eq('model_version', MODEL_VERSION),
+          .eq('model_version', mv),
       ]);
     if (te || me || pe) throw te || me || pe;
 
@@ -199,7 +202,7 @@ export async function getMatches(): Promise<MatchesResponse> {
       const pred = predMap.get(m.match_id);
       const model = pred
         ? {
-            model_version: MODEL_VERSION,
+            model_version: mv,
             lambda_home: Number(pred.lambda_home),
             lambda_away: Number(pred.lambda_away),
             p_home: Number(pred.p_home),
@@ -246,7 +249,8 @@ export async function getMatches(): Promise<MatchesResponse> {
   }
 }
 
-export async function getGroups(): Promise<GroupsResponse> {
+export async function getGroups(modelVersion?: string): Promise<GroupsResponse> {
+  const mv = resolveModelVersion(modelVersion);
   const empty: GroupsResponse = {
     model_version: null,
     sim_n: null,
@@ -261,7 +265,7 @@ export async function getGroups(): Promise<GroupsResponse> {
       client
         .from('group_sim')
         .select('team_id,group_label,p_first,p_second,p_third_qual,p_advance,sim_n,model_version,computed_at')
-        .eq('model_version', MODEL_VERSION),
+        .eq('model_version', mv),
       client.from('teams').select('team_id,name_en,name_zh'),
     ]);
     if (se || te) throw se || te;
@@ -285,7 +289,7 @@ export async function getGroups(): Promise<GroupsResponse> {
     }
     for (const g of Object.keys(groups)) groups[g].sort((a, b) => b.p_advance - a.p_advance);
     return {
-      model_version: (sim?.[0]?.model_version as string) ?? MODEL_VERSION,
+      model_version: (sim?.[0]?.model_version as string) ?? mv,
       sim_n: simN,
       computed_at: computedAt,
       groups,
@@ -384,12 +388,13 @@ export async function getStandings(): Promise<StandingsResponse> {
  * server-side (P6 §3.5 / TB12). Table may not exist pre-DDL → null (graceful). */
 async function fetchCalibration(
   client: NonNullable<ReturnType<typeof getSupabase>>,
+  modelVersion: string = MODEL_VERSION,
 ): Promise<CalibrationStatus | null> {
   try {
     const { data, error } = await client
       .from('calibration_runs')
       .select('model_version,run_at,n_settled,model_brier,market_brier')
-      .eq('model_version', MODEL_VERSION)
+      .eq('model_version', modelVersion)
       .order('run_at', { ascending: false })
       .limit(1);
     if (error || !data?.[0]) return null;
@@ -418,7 +423,9 @@ export async function getValueMarket(
   matchId: string,
   market: 'h2h' | 'totals',
   outcome: string,
+  modelVersion?: string,
 ): Promise<ValueMarketResponse> {
+  const mv = resolveModelVersion(modelVersion);
   const base: ValueMarketResponse = {
     match_id: matchId,
     market,
@@ -438,7 +445,7 @@ export async function getValueMarket(
   if (!client) return base;
   try {
     const rows = await fetchLatestOdds(client, [matchId]);
-    const calibration = await fetchCalibration(client);
+    const calibration = await fetchCalibration(client, mv);
 
     if (market === 'h2h') {
       const pinH2H: Record<string, number> = {};
@@ -457,7 +464,7 @@ export async function getValueMarket(
           .from('match_predictions')
           .select('model_version,p_home,p_draw,p_away')
           .eq('match_id', matchId)
-          .eq('model_version', MODEL_VERSION)
+          .eq('model_version', mv)
           .limit(1);
         if (mp?.[0]) {
           modelH2h = {
@@ -512,7 +519,7 @@ export async function getValueMarket(
         .from('model_total_lines')
         .select('point,model_p_over,model_p_under,model_p_push')
         .eq('match_id', matchId)
-        .eq('model_version', MODEL_VERSION);
+        .eq('model_version', mv);
       if (!ge && mtl && mtl.length > 0) {
         grid = mtl
           .map((g) => ({
@@ -614,7 +621,7 @@ export async function getTrackRecord(): Promise<TrackRecordResponse> {
         client
           .from('match_predictions')
           .select('match_id,p_home,p_draw,p_away')
-          .eq('model_version', MODEL_VERSION),
+          .eq('model_version', BASELINE_VERSION),
       ]);
     if (te || me || pe) throw te || me || pe;
 

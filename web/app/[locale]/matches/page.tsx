@@ -6,14 +6,24 @@ import type { Locale } from '@/lib/routing';
 import MatchFilters from '@/components/MatchFilters';
 import EmptyState from '@/components/EmptyState';
 import KnockoutTbd from '@/components/KnockoutTbd';
+import ModelVersionSwitcher from '@/components/ModelVersionSwitcher';
 
-export const revalidate = 1800; // time-based ISR (spec §2 / Issue 2)
+// Reading searchParams (?v model version, P10) opts this route into dynamic rendering;
+// force it explicitly so matchday data is always fresh (replaces the prior 30-min ISR).
+export const dynamic = 'force-dynamic';
 
-export default async function MatchesPage({ params }: { params: Promise<{ locale: string }> }) {
+export default async function MatchesPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ locale: string }>;
+  searchParams: Promise<{ v?: string }>;
+}) {
   const { locale } = await params;
+  const { v } = await searchParams;
   setRequestLocale(locale);
   const t = await getTranslations({ locale });
-  const { matches, unavailable } = await getMatches();
+  const { matches, unavailable } = await getMatches(v);
   const tz = siteTz(locale);
 
   // graceful zh-name fallback banner (spec §3.2 / §6.6)
@@ -26,6 +36,8 @@ export default async function MatchesPage({ params }: { params: Promise<{ locale
         <h1 className="text-2xl font-bold text-slate-900">{t('matches.title')}</h1>
         <p className="mt-1 text-slate-600">{t('matches.subtitle')}</p>
       </header>
+
+      <ModelVersionSwitcher current={v} />
 
       {showZhBanner && (
         <p className="rounded bg-amber-50 px-3 py-2 text-sm text-amber-800">{t('footer.zhNamePending')}</p>
