@@ -26,6 +26,7 @@
     "results": "Results",
     "trackRecord": "Track Record",
     "standings": "Standings",
+    "scenarios": "Scenarios",
     "groups": "Advancement",
     "value": "EV Calculator",
     "guide": "Guide"
@@ -172,6 +173,30 @@
     "legendThird": "3rd may advance (best third-placed)",
     "legendAdvanceLink": "See advancement odds",
     "tiebreakNote": "Ranking: points, then goal difference, then goals for, then head-to-head. FIFA's further tiebreakers (fair-play points, drawing of lots) are not modelled; teams that remain level are shown tied (=)."
+  },
+  "scenarios": {
+    "title": "Qualification Scenarios",
+    "subtitle": "For every remaining group match, what each result does to both teams — who clinches, who's eliminated, who stays alive.",
+    "empty": "No remaining group matches to analyse",
+    "teamWins": "{team} win",
+    "draw": "Draw",
+    "deadRubber": "No bearing on qualification",
+    "convenienceDraw": "A draw sends both teams through",
+    "mutualThird": "A draw puts both at least 3rd — qualification still depends on other groups",
+    "seedingLive": "Still playing for position / seeding",
+    "probAdvance": "Model: {pct} to advance · experimental",
+    "legendClinched": "Clinched",
+    "legendAlive": "Still alive",
+    "legendEliminated": "Eliminated",
+    "factNote": "Clinched / eliminated are deterministic facts (points, goal difference, head-to-head). A finish 3rd may still advance via the 8 best third-placed teams — that depends on other groups, so it is shown as still alive, never as clinched.",
+    "probNote": "The advancement percentage is an experimental model estimate (Monte Carlo), shown only as a guide — it is separate from the deterministic facts and never upgrades a status.",
+    "basis_clinched_first": "Clinched 1st",
+    "basis_clinched_second": "Clinched 2nd",
+    "basis_clinched_top2": "Clinched top 2",
+    "basis_eliminated": "Eliminated",
+    "basis_secured_third_needs_race": "At least 3rd — needs best-third race",
+    "basis_alive_can_third": "Alive — could finish 3rd",
+    "basis_alive": "Still alive"
   },
   "value": {
     "title": "EV / value calculator",

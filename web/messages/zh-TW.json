@@ -26,6 +26,7 @@
     "results": "賽程成績",
     "trackRecord": "預測結果",
     "standings": "積分榜",
+    "scenarios": "晉級情境",
     "groups": "晉級機率",
     "value": "EV 計算機",
     "guide": "教學"
@@ -172,6 +173,30 @@
     "legendThird": "第 3 名仍可能晉級（最佳第三名）",
     "legendAdvanceLink": "查看晉級機率",
     "tiebreakNote": "排序：積分 → 淨勝球 → 進球 → 對戰成績（H2H）。FIFA 後續的公平競賽分、抽籤未模擬；仍同分者以並列（=）顯示。"
+  },
+  "scenarios": {
+    "title": "晉級情境分析",
+    "subtitle": "每場尚未踢的小組賽，三種結果分別把兩隊的晉級狀態變成什麼——誰鎖定、誰出局、誰還有機會。",
+    "empty": "目前沒有可分析的剩餘小組賽",
+    "teamWins": "{team} 勝",
+    "draw": "和局",
+    "deadRubber": "與晉級無關",
+    "convenienceDraw": "握手言和，雙方皆晉級",
+    "mutualThird": "平手雙方皆至少第三——能否晉級仍看其他組",
+    "seedingLive": "仍爭名次／種子位",
+    "probAdvance": "模型估晉級 {pct}・實驗性",
+    "legendClinched": "已鎖定",
+    "legendAlive": "仍有機會",
+    "legendEliminated": "已淘汰",
+    "factNote": "「鎖定／淘汰」是決定性事實（積分、淨勝球、對戰成績）。第三名仍可能以 8 個最佳第三名晉級——這取決於其他組，因此標為「仍有機會」，絕不謊稱已鎖定。",
+    "probNote": "晉級百分比為實驗性模型估計（Monte Carlo），僅供參考；與決定性事實分開呈現，不會把狀態升級成已鎖定。",
+    "basis_clinched_first": "鎖定小組第一",
+    "basis_clinched_second": "鎖定小組第二",
+    "basis_clinched_top2": "鎖定前二",
+    "basis_eliminated": "已淘汰",
+    "basis_secured_third_needs_race": "至少第三——看最佳第三名戰",
+    "basis_alive_can_third": "仍有機會——可能第三",
+    "basis_alive": "仍有機會"
   },
   "value": {
     "title": "EV / value 計算機",

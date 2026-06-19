@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { href: '/results', labelKey: 'nav.results' },
   { href: '/track-record', labelKey: 'nav.trackRecord' },
   { href: '/standings', labelKey: 'nav.standings' },
+  { href: '/scenarios', labelKey: 'nav.scenarios' },
   { href: '/groups', labelKey: 'nav.groups' },
   { href: '/value', labelKey: 'nav.value' },
   { href: '/guide', labelKey: 'nav.guide' },

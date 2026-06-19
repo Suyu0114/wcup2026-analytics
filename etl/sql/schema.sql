@@ -175,3 +175,34 @@ create table group_standings (
   computed_at  timestamptz not null default now()   -- provenance
 );
 create index group_standings_group on group_standings (group_label, rank);
+
+
+-- =====================================================================
+-- P11 (qualification scenario analysis): for every not-yet-final group match,
+-- what each of W/D/L does to the two teams' qualification status. Migration:
+-- p11.sql. A deterministic FACT (no model, no Elo, no randomness — cf.
+-- group_standings) → NO model_version. Cross-group best-third safety is NOT
+-- decided here (v1-lean, spec §6); such teams stay `alive`/needs_best_third and
+-- the frontend overlays the separate, experimental group_sim probability.
+-- Grain = (match_id, outcome, team_id). Match-level flags denormalized per row.
+-- Recomputed by etl/scenarios.py (full delete-all + insert) after etl/standings.py;
+-- the table never holds a final match's rows (spec §8.2).
+-- =====================================================================
+create table group_scenarios (
+  match_id              text not null references matches(match_id),
+  group_label           char(1) not null,            -- 'A'..'L'
+  outcome               text not null,               -- 'home' | 'draw' | 'away'
+  team_id               text not null references teams(team_id),
+  status                text not null,               -- top2_clinched | advance_clinched | eliminated | alive
+  can_win_group         boolean not null,
+  secured_3rd_or_better boolean not null,
+  needs_best_third      boolean not null,
+  seeding_live          boolean not null,            -- clinched top-2 but 1st-vs-2nd not pinned
+  basis_key             text not null,               -- structured i18n key (translated in the frontend)
+  convenience_draw      boolean not null,            -- match-level: draw locks both into top-2
+  convenience_draw_kind text,                         -- 'top2' | 'mutual_3rd_conditional' | null
+  dead_rubber           boolean not null,            -- match-level: result changes nothing
+  computed_at           timestamptz not null default now()
+);
+create index group_scenarios_group on group_scenarios (group_label);
+alter table group_scenarios add primary key (match_id, outcome, team_id);

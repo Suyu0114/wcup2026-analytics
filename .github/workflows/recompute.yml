@@ -30,6 +30,8 @@ jobs:
         run: python -m etl.ingest_fixtures
       - name: Recompute group standings (actual table)
         run: python -m etl.standings
+      - name: Recompute qualification scenarios (W/D/L → status)
+        run: python -m etl.scenarios
       - name: Simulate group-stage advancement
         run: python -m etl.simulate
       - name: Calibrate (model vs market)
