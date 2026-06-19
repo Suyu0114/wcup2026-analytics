@@ -83,7 +83,7 @@ def run(dry_run: bool = False) -> list[dict]:
                         "computed_at": now,
                     })
 
-    print(f"Scenarios: {pending_total} pending match(es) → {len(rows)} rows")
+    print(f"Scenarios: {pending_total} pending match(es) -> {len(rows)} rows")
 
     if dry_run:
         print("--dry-run: skipping group_scenarios replace.")
