@@ -422,3 +422,22 @@ def upsert_group_standings(rows: list[dict]) -> int:
         ).execute()
     return len(rows)
 
+
+# --- P11 reads/writes (qualification scenario analysis) ---
+
+def replace_group_scenarios(rows: list[dict]) -> int:
+    """Full delete-all + insert of group_scenarios (idempotent).
+
+    Scenario rows are keyed by (match_id, outcome, team_id) and a match's rows
+    DISAPPEAR once it goes final, so a plain upsert would leave stale rows. The
+    table is tiny (≤432 rows) and fully recomputed each matchday → delete-all +
+    insert is the cleanest idempotent pattern (spec §8.2). Reuses the P8 read
+    fetch_group_matches_for_standings(); no new fetch needed.
+    """
+    client = get_client()
+    # PostgREST requires a filter on delete; match a column present on every row.
+    client.table("group_scenarios").delete().neq("match_id", "").execute()
+    if rows:
+        client.table("group_scenarios").insert(rows).execute()
+    return len(rows)
+

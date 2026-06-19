@@ -229,3 +229,39 @@ export interface TrackRecordResponse {
   summary: TrackRecordSummary;
   unavailable: boolean;
 }
+
+// P11 — qualification scenario analysis. For every not-yet-final group match, what each
+// of W/D/L does to the two teams' qualification status. A deterministic FACT (no
+// model_version). Cross-group best-third safety is NOT decided here (v1-lean); such teams
+// stay `alive`/needs_best_third and the frontend overlays the separate, experimental
+// group_sim probability (spec §7). status ∈ top2_clinched|advance_clinched|eliminated|alive.
+export interface TeamOutcomeView {
+  team_id: string;
+  name_en: string;
+  name_zh: string | null;
+  status: string;
+  can_win_group: boolean;
+  secured_3rd_or_better: boolean;
+  needs_best_third: boolean;
+  seeding_live: boolean; // clinched top-2 but 1st-vs-2nd not pinned ([A])
+  basis_key: string; // structured i18n key (scenarios.basis_<key>)
+}
+
+export interface MatchScenarioView {
+  match_id: string;
+  group_label: string;
+  kickoff_utc: string;
+  home: TeamRef;
+  away: TeamRef;
+  // outcome → [home-team outcome, away-team outcome]
+  outcomes: Record<'home' | 'draw' | 'away', [TeamOutcomeView, TeamOutcomeView]>;
+  convenience_draw: boolean; // draw locks both into top-2 (strong, Gijón-style)
+  convenience_draw_kind: string | null; // 'top2' | 'mutual_3rd_conditional' | null
+  dead_rubber: boolean; // result changes nothing (qualification AND seeding) ([A])
+}
+
+export interface ScenariosResponse {
+  groups: Record<string, MatchScenarioView[]>;
+  computed_at: string | null;
+  unavailable: boolean;
+}

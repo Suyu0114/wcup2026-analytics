@@ -31,6 +31,9 @@ import type {
   FixtureView,
   StandingsResponse,
   StandingRow,
+  ScenariosResponse,
+  MatchScenarioView,
+  TeamOutcomeView,
   TrackRecordResponse,
   TrackRecordRow,
   TrackRecordSummary,
@@ -378,6 +381,113 @@ export async function getStandings(): Promise<StandingsResponse> {
       });
     }
     for (const g of Object.keys(groups)) groups[g].sort((a, b) => a.rank - b.rank);
+    return { groups, computed_at: computedAt, unavailable: false };
+  } catch {
+    return empty;
+  }
+}
+
+interface ScenarioRow {
+  match_id: string;
+  group_label: string;
+  outcome: string;
+  team_id: string;
+  status: string;
+  can_win_group: boolean;
+  secured_3rd_or_better: boolean;
+  needs_best_third: boolean;
+  seeding_live: boolean;
+  basis_key: string;
+  convenience_draw: boolean;
+  convenience_draw_kind: string | null;
+  dead_rubber: boolean;
+  computed_at: string;
+}
+
+/** Qualification scenarios (P11 /scenarios). A FACT — no model_version filter (cf. getGroups,
+ * do not copy the .eq there). Reconstructs the (match → outcome → [home, away]) matrix from the
+ * flat group_scenarios rows, joining matches for home/away identity + kickoff ordering. The model
+ * probability overlay is layered SEPARATELY in the page (getGroups), never mixed here (spec §7).
+ * Pre-migration the table is absent → query throws → unavailable (graceful, §6.6). */
+export async function getScenarios(): Promise<ScenariosResponse> {
+  const empty: ScenariosResponse = { groups: {}, computed_at: null, unavailable: true };
+  const client = getSupabase();
+  if (!client) return empty;
+  try {
+    const [{ data: rows, error: re }, { data: teams, error: te }, { data: matches, error: me }] =
+      await Promise.all([
+        client
+          .from('group_scenarios')
+          .select(
+            'match_id,group_label,outcome,team_id,status,can_win_group,secured_3rd_or_better,needs_best_third,seeding_live,basis_key,convenience_draw,convenience_draw_kind,dead_rubber,computed_at',
+          ),
+        client.from('teams').select('team_id,name_en,name_zh,elo'),
+        client
+          .from('matches')
+          .select('match_id,group_label,home_team,away_team,kickoff_utc')
+          .eq('stage', 'group'),
+      ]);
+    if (re || te || me) throw re || te || me;
+
+    const teamMap = new Map((teams ?? []).map((t) => [t.team_id, t]));
+    const matchMap = new Map((matches ?? []).map((m) => [m.match_id, m]));
+    const byMatch = new Map<string, ScenarioRow[]>();
+    let computedAt: string | null = null;
+    for (const r of (rows ?? []) as ScenarioRow[]) {
+      computedAt = r.computed_at;
+      (byMatch.get(r.match_id) ?? byMatch.set(r.match_id, []).get(r.match_id)!).push(r);
+    }
+
+    const toOutcome = (r: ScenarioRow): TeamOutcomeView => {
+      const t = teamMap.get(r.team_id);
+      return {
+        team_id: r.team_id,
+        name_en: t?.name_en ?? r.team_id,
+        name_zh: t?.name_zh ?? null,
+        status: r.status,
+        can_win_group: Boolean(r.can_win_group),
+        secured_3rd_or_better: Boolean(r.secured_3rd_or_better),
+        needs_best_third: Boolean(r.needs_best_third),
+        seeding_live: Boolean(r.seeding_live),
+        basis_key: r.basis_key,
+      };
+    };
+
+    const groups: Record<string, MatchScenarioView[]> = {};
+    for (const [matchId, mrows] of byMatch) {
+      const match = matchMap.get(matchId);
+      if (!match) continue; // scenario row must map to a stored match
+      const home = teamMap.get(match.home_team);
+      const away = teamMap.get(match.away_team);
+      if (!home || !away) continue;
+
+      const outcomes = {} as MatchScenarioView['outcomes'];
+      let complete = true;
+      for (const o of ['home', 'draw', 'away'] as const) {
+        const hr = mrows.find((r) => r.outcome === o && r.team_id === match.home_team);
+        const ar = mrows.find((r) => r.outcome === o && r.team_id === match.away_team);
+        if (!hr || !ar) {
+          complete = false;
+          break;
+        }
+        outcomes[o] = [toOutcome(hr), toOutcome(ar)];
+      }
+      if (!complete) continue; // defensive: a partial match isn't shown
+
+      const flag = mrows[0];
+      (groups[match.group_label] ??= []).push({
+        match_id: matchId,
+        group_label: match.group_label,
+        kickoff_utc: match.kickoff_utc,
+        home: { team_id: home.team_id, name_en: home.name_en, name_zh: home.name_zh, elo: Number(home.elo) },
+        away: { team_id: away.team_id, name_en: away.name_en, name_zh: away.name_zh, elo: Number(away.elo) },
+        outcomes,
+        convenience_draw: Boolean(flag.convenience_draw),
+        convenience_draw_kind: flag.convenience_draw_kind ?? null,
+        dead_rubber: Boolean(flag.dead_rubber),
+      });
+    }
+    for (const g of Object.keys(groups)) groups[g].sort((a, b) => a.kickoff_utc.localeCompare(b.kickoff_utc));
     return { groups, computed_at: computedAt, unavailable: false };
   } catch {
     return empty;
