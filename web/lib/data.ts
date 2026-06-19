@@ -424,7 +424,7 @@ export async function getScenarios(): Promise<ScenariosResponse> {
         client.from('teams').select('team_id,name_en,name_zh,elo'),
         client
           .from('matches')
-          .select('match_id,group_label,home_team,away_team,kickoff_utc')
+          .select('match_id,group_label,home_team,away_team,kickoff_utc,status')
           .eq('stage', 'group'),
       ]);
     if (re || te || me) throw re || te || me;
@@ -456,7 +456,11 @@ export async function getScenarios(): Promise<ScenariosResponse> {
     const groups: Record<string, MatchScenarioView[]> = {};
     for (const [matchId, mrows] of byMatch) {
       const match = matchMap.get(matchId);
-      if (!match) continue; // scenario row must map to a stored match
+      // Skip a match that has no stored row, OR is already final — scenarios are only for
+      // not-yet-played matches. group_scenarios is rebuilt each matchday, but between a score
+      // landing and that rebuild it can be momentarily stale; this read-time guard keeps the
+      // page consistent with live results so a finished match never shows as a scenario.
+      if (!match || match.status === 'final') continue;
       const home = teamMap.get(match.home_team);
       const away = teamMap.get(match.away_team);
       if (!home || !away) continue;
