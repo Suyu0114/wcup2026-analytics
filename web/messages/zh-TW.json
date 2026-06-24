@@ -28,6 +28,7 @@
     "standings": "積分榜",
     "scenarios": "晉級情境",
     "groups": "晉級機率",
+    "bracket": "淘汰賽表",
     "value": "EV 計算機",
     "guide": "教學"
   },
@@ -105,6 +106,22 @@
     "pAdvance": "晉級 R32",
     "groupLabel": "組",
     "simEmpty": "模擬數據準備中"
+  },
+  "bracket": {
+    "title": "淘汰賽對戰表",
+    "subtitle": "32 強至決賽。48 隊新制：12 個小組的第一、第二，加上 8 個最佳第三名。對戰於小組賽後決定——抽籤底定後顯示隊伍與預測。",
+    "preDrawNote": "小組賽結束、32 強抽籤底定後，隊伍才會填入。",
+    "thirdPlaceTitle": "季軍戰",
+    "slotWinner": "{group} 組第一",
+    "slotRunnerUp": "{group} 組第二",
+    "slotThird": "第三名 {groups}",
+    "slotMatchWinner": "M{n} 勝者",
+    "slotMatchLoser": "M{n} 敗者",
+    "matchNo": "M{n}",
+    "toAdvance": "晉級機率",
+    "predictionsTitle": "淘汰賽預測",
+    "predictionsNote": "單場晉級機率（正規時間 1X2 將平局分攤，即含延長賽／PK），有賠率時並列市場。實驗性。",
+    "empty": "抽籤後顯示淘汰賽對戰"
   },
   "results": {
     "title": "賽程與成績",

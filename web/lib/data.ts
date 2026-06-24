@@ -160,93 +160,120 @@ function buildMatchMarket(rows: OddsRow[]): MatchMarket | null {
   };
 }
 
+/** Build MatchView[] (predictions + odds + divergence) for a stage scope. Shared by
+ * getMatches (group) and getKnockout (knockout); the only difference is the stage filter,
+ * so the prediction/odds/upset/divergence logic stays in one place (D5 isolation intact). */
+async function buildMatchViews(
+  client: NonNullable<ReturnType<typeof getSupabase>>,
+  mv: string,
+  scope: 'group' | 'knockout',
+): Promise<MatchView[]> {
+  const matchesSel = client
+    .from('matches')
+    .select('match_id,stage,group_label,home_team,away_team,kickoff_utc,status');
+  const matchesQuery = scope === 'group' ? matchesSel.eq('stage', 'group') : matchesSel.neq('stage', 'group');
+  const [{ data: teams, error: te }, { data: matches, error: me }, { data: preds, error: pe }] =
+    await Promise.all([
+      client.from('teams').select('team_id,name_en,name_zh,elo'),
+      matchesQuery,
+      client
+        .from('match_predictions')
+        .select('match_id,lambda_home,lambda_away,p_home,p_draw,p_away,p_over_2_5,p_btts,exp_total_goals')
+        .eq('model_version', mv),
+    ]);
+  if (te || me || pe) throw te || me || pe;
+
+  const teamMap = new Map((teams ?? []).map((t) => [t.team_id, t]));
+  const predMap = new Map((preds ?? []).map((p) => [p.match_id, p]));
+
+  // odds are optional — failure here must not hide predictions (graceful, §6.6)
+  let oddsByMatch = new Map<string, OddsRow[]>();
+  const matchIds = (matches ?? []).map((m) => m.match_id);
+  try {
+    if (matchIds.length > 0) {
+      const oddsRows = await fetchLatestOdds(client, matchIds);
+      oddsByMatch = oddsRows.reduce((acc, r) => {
+        (acc.get(r.match_id) ?? acc.set(r.match_id, []).get(r.match_id)!).push(r);
+        return acc;
+      }, new Map<string, OddsRow[]>());
+    }
+  } catch {
+    oddsByMatch = new Map();
+  }
+
+  const views: MatchView[] = [];
+  for (const m of matches ?? []) {
+    const home = teamMap.get(m.home_team);
+    const away = teamMap.get(m.away_team);
+    if (!home || !away) continue; // contract violation skipped defensively
+    const pred = predMap.get(m.match_id);
+    const model = pred
+      ? {
+          model_version: mv,
+          lambda_home: Number(pred.lambda_home),
+          lambda_away: Number(pred.lambda_away),
+          p_home: Number(pred.p_home),
+          p_draw: Number(pred.p_draw),
+          p_away: Number(pred.p_away),
+          p_over_2_5: Number(pred.p_over_2_5),
+          p_btts: pred.p_btts === null ? null : Number(pred.p_btts),
+          exp_total_goals: Number(pred.exp_total_goals),
+          upset: computeUpset({
+            homeTeam: m.home_team,
+            awayTeam: m.away_team,
+            eloHome: Number(home.elo),
+            eloAway: Number(away.elo),
+            pHome: Number(pred.p_home),
+            pDraw: Number(pred.p_draw),
+            pAway: Number(pred.p_away),
+          }),
+        }
+      : null;
+    const market = buildMatchMarket(oddsByMatch.get(m.match_id) ?? []);
+    const divergence = model
+      ? computeDivergence(
+          { home: model.p_home, draw: model.p_draw, away: model.p_away },
+          market?.pinnacle_novig ?? null,
+        )
+      : null;
+    views.push({
+      match_id: m.match_id,
+      stage: m.stage,
+      group_label: m.group_label,
+      kickoff_utc: m.kickoff_utc,
+      status: m.status,
+      home: { team_id: home.team_id, name_en: home.name_en, name_zh: home.name_zh, elo: Number(home.elo) },
+      away: { team_id: away.team_id, name_en: away.name_en, name_zh: away.name_zh, elo: Number(away.elo) },
+      model,
+      market,
+      divergence,
+    });
+  }
+  views.sort((a, b) => a.kickoff_utc.localeCompare(b.kickoff_utc));
+  return views;
+}
+
 export async function getMatches(modelVersion?: string): Promise<MatchesResponse> {
   const mv = resolveModelVersion(modelVersion);
   const client = getSupabase();
   if (!client) return { matches: [], unavailable: true };
   try {
-    const [{ data: teams, error: te }, { data: matches, error: me }, { data: preds, error: pe }] =
-      await Promise.all([
-        client.from('teams').select('team_id,name_en,name_zh,elo'),
-        client
-          .from('matches')
-          .select('match_id,stage,group_label,home_team,away_team,kickoff_utc,status')
-          .eq('stage', 'group'),
-        client
-          .from('match_predictions')
-          .select('match_id,lambda_home,lambda_away,p_home,p_draw,p_away,p_over_2_5,p_btts,exp_total_goals')
-          .eq('model_version', mv),
-      ]);
-    if (te || me || pe) throw te || me || pe;
+    return { matches: await buildMatchViews(client, mv, 'group'), unavailable: false };
+  } catch {
+    return { matches: [], unavailable: true };
+  }
+}
 
-    const teamMap = new Map((teams ?? []).map((t) => [t.team_id, t]));
-    const predMap = new Map((preds ?? []).map((p) => [p.match_id, p]));
-
-    // odds are optional — failure here must not hide predictions (graceful, §6.6)
-    let oddsByMatch = new Map<string, OddsRow[]>();
-    const matchIds = (matches ?? []).map((m) => m.match_id);
-    try {
-      if (matchIds.length > 0) {
-        const oddsRows = await fetchLatestOdds(client, matchIds);
-        oddsByMatch = oddsRows.reduce((acc, r) => {
-          (acc.get(r.match_id) ?? acc.set(r.match_id, []).get(r.match_id)!).push(r);
-          return acc;
-        }, new Map<string, OddsRow[]>());
-      }
-    } catch {
-      oddsByMatch = new Map();
-    }
-
-    const views: MatchView[] = [];
-    for (const m of matches ?? []) {
-      const home = teamMap.get(m.home_team);
-      const away = teamMap.get(m.away_team);
-      if (!home || !away) continue; // contract violation skipped defensively
-      const pred = predMap.get(m.match_id);
-      const model = pred
-        ? {
-            model_version: mv,
-            lambda_home: Number(pred.lambda_home),
-            lambda_away: Number(pred.lambda_away),
-            p_home: Number(pred.p_home),
-            p_draw: Number(pred.p_draw),
-            p_away: Number(pred.p_away),
-            p_over_2_5: Number(pred.p_over_2_5),
-            p_btts: pred.p_btts === null ? null : Number(pred.p_btts),
-            exp_total_goals: Number(pred.exp_total_goals),
-            upset: computeUpset({
-              homeTeam: m.home_team,
-              awayTeam: m.away_team,
-              eloHome: Number(home.elo),
-              eloAway: Number(away.elo),
-              pHome: Number(pred.p_home),
-              pDraw: Number(pred.p_draw),
-              pAway: Number(pred.p_away),
-            }),
-          }
-        : null;
-      const market = buildMatchMarket(oddsByMatch.get(m.match_id) ?? []);
-      const divergence = model
-        ? computeDivergence(
-            { home: model.p_home, draw: model.p_draw, away: model.p_away },
-            market?.pinnacle_novig ?? null,
-          )
-        : null;
-      views.push({
-        match_id: m.match_id,
-        stage: m.stage,
-        group_label: m.group_label,
-        kickoff_utc: m.kickoff_utc,
-        status: m.status,
-        home: { team_id: home.team_id, name_en: home.name_en, name_zh: home.name_zh, elo: Number(home.elo) },
-        away: { team_id: away.team_id, name_en: away.name_en, name_zh: away.name_zh, elo: Number(away.elo) },
-        model,
-        market,
-        divergence,
-      });
-    }
-    views.sort((a, b) => a.kickoff_utc.localeCompare(b.kickoff_utc));
-    return { matches: views, unavailable: false };
+/** Knockout-stage predictions (P13 /bracket). Same shape as getMatches but stage != 'group'.
+ * Empty until the R32 draw is ingested (knockout rows require both teams — FK NOT NULL), so
+ * pre-draw this is a graceful empty list, not an error (§6.6). Advance% (We = p_home +
+ * ½·p_draw, trap #6) is derived at display time; the stored 1X2 stays as-is. */
+export async function getKnockout(modelVersion?: string): Promise<MatchesResponse> {
+  const mv = resolveModelVersion(modelVersion);
+  const client = getSupabase();
+  if (!client) return { matches: [], unavailable: true };
+  try {
+    return { matches: await buildMatchViews(client, mv, 'knockout'), unavailable: false };
   } catch {
     return { matches: [], unavailable: true };
   }

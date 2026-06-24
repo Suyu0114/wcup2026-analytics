@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { href: '/standings', labelKey: 'nav.standings' },
   { href: '/scenarios', labelKey: 'nav.scenarios' },
   { href: '/groups', labelKey: 'nav.groups' },
+  { href: '/bracket', labelKey: 'nav.bracket' },
   { href: '/value', labelKey: 'nav.value' },
   { href: '/guide', labelKey: 'nav.guide' },
 ] as const;

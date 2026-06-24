@@ -45,6 +45,13 @@ World Cup 2026 Analytics — 賽事預測/分析平台的工程指南。
 - **重用、不分叉**：組內排名走 [engine/standings.py](engine/standings.py) 的決定性顯示排名思路、H2H 數學共用 `_compute_h2h_stats`；**不**呼叫 `group_sim.rank_group`/`rank_third_places` 當事實（其 `…→Elo→random` 是模擬強制全序，當事實會謊報——同 P8 分叉理由）。
 - **前端 `/scenarios`**（[web/app/[locale]/scenarios/page.tsx](web/app/[locale]/scenarios/page.tsx)，`getScenarios()`，**force-dynamic**）：按組編排（mini 積分榜 context + [ScenarioCard](web/components/ScenarioCard.tsx)）。`alive` 隊附 `group_sim` 機率小字，**標「模型・實驗性」、受 `?v=`、缺則 graceful、措辭不得讀起來像 clinch**（事實/模型分離，trap #13b；此處**無對應市場盤** → hard rule #7 並列義務不適用）。
 
+### P13 — 淘汰賽 bracket 頁（code 完成；規劃 [docs/p13-knockout-page-plan.md](docs/p13-knockout-page-plan.md)。配對的 P14 模型＝[docs/p14-knockout-model-plan.md](docs/p14-knockout-model-plan.md)，**未實作**）
+- **2026 新制**：12 組 → R32 = 各組前二（24）＋ **8 最佳第三名**；8 個第三名照 FIFA **Annex C（C(12,8)=495）** 配入 R32 槽。抽籤後真實 bracket 由 fd 直接給（**本頁顯示用不到 Annex C**；模擬才需＝P14）。
+- **canonical bracket＝[engine/bracket.py](engine/bracket.py)（single source of truth）**：matches 73–104 的 slot 模板＋8 個第三名候選集＋feeder tree。web 端讀**生成**的 [web/lib/bracket.data.json](web/lib/bracket.data.json)（`python web/tests/fixtures/gen_bracket.py` 重生；parity 由 [tests/test_bracket.py](tests/test_bracket.py) 把關，比照 golden_vectors，trap #13c）。structural 不變量測試（12 勝者/亞軍各一、8 第三名槽、候選集 40、tree 完整）。**改 engine/bracket.py 要重生 JSON**。
+- **前端 `/bracket`**（[web/app/[locale]/bracket/page.tsx](web/app/[locale]/bracket/page.tsx)，**force-dynamic**、受 `?v=`）：[BracketView](web/components/BracketView.tsx) 永遠畫 slot 模板（抽籤前 TBD）；抽籤後 `getKnockout(v)`（與 `getMatches` 共用 `buildMatchViews`）列出真實淘汰賽 [KnockoutMatchCard](web/components/KnockoutMatchCard.tsx)：**single-match advance %（We＝p_home+½·p_draw，trap #6）＋ model vs market 並列**。
+- **predict 免改**：[etl/predict.py](etl/predict.py) 無 stage filter，淘汰賽 row 一有隊即自動預測（中立場，HFA 僅地主自家場經 is_host flags）。
+- ⚠️ **post-draw 待補（gated on 抽籤）**：(a) 淘汰賽 host 場 venue 補進 [etl/venues.py](etl/venues.py) `MANUAL_VENUE`（缺則 `host_flags` raise）；(b) 策展 match_no↔fd match_id 後可把真實場次填進 bracket 格（目前真實場次走獨立清單，非 in-cell）；(c) odds 同隊再遇去重 collision（trap #12）；(d) fd 是否可靠填淘汰賽隊伍待驗，不行需手動 bracket 種子。
+
 ## 結構
 ```
 docs/P0-P1-spec.md     ← P0/P1 執行契約；P2-spec.md ← P2；P3-spec.md ← P3；P5-spec.md ← P5；P6-spec.md ← P6（已實作，修訂 P3/P5 契約）
@@ -61,9 +68,9 @@ etl/                   ← ingestion + jobs（Elo / fixtures / alias / odds / pr
   sql/migrations/p6.sql ← P6 增量 DDL（既有 DB 用這個）；p8.sql ← P8 group_standings；p11.sql ← P11 group_scenarios
 fit/                   ← P6 A2 離線擬合（fit_dc.py → REPORT.md / DIAGNOSIS.md）
 sources/               ← adapter（RatingSource / FixtureSource / TheOddsApiSource）
-engine/                ← Dixon–Coles 引擎（spec §5）+ group_sim.py（P2 純函數模擬）+ value.py（P3 EV/Kelly）+ standings.py（P8 顯示排名，事實非模型）+ scenarios.py（P11 晉級情境，points-band，事實非模型）
+engine/                ← Dixon–Coles 引擎（spec §5）+ group_sim.py（P2 純函數模擬）+ value.py（P3 EV/Kelly）+ standings.py（P8 顯示排名，事實非模型）+ scenarios.py（P11 晉級情境，points-band，事實非模型）+ bracket.py（P13 淘汰賽 canonical 結構，single source of truth → web/lib/bracket.data.json）
 web/                   ← P5 Next.js 前端（App Router + Tailwind + next-intl）
-  app/[locale]/        ← 頁面（home / matches / results / standings / scenarios / groups / value）；app/api/* ← server route handlers
+  app/[locale]/        ← 頁面（home / matches / results / standings / scenarios / groups / bracket / value）；app/api/* ← server route handlers
   lib/                 ← supabaseServer（service key, server-only）/ devig（server）/ value.ts（port, model-free）/ upset / data
   components/          ← ModelVsMarket（並列核心）/ ProbBar / ValueCalculator（client island）/ footers …
   messages/{zh-TW,en}.json  ← UI 字典（key 一一對應）；tests/ ← value/upset/i18n（golden_vectors 由 value.py 生成）
