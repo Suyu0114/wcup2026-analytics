@@ -206,3 +206,39 @@ create table group_scenarios (
 );
 create index group_scenarios_group on group_scenarios (group_label);
 alter table group_scenarios add primary key (match_id, outcome, team_id);
+
+
+-- =====================================================================
+-- P14 (full-tournament knockout Monte Carlo): group → R32 (faithful FIFA Annex C,
+-- engine/data/annex_c.json) → single-elimination (neutral-site, no-draw win
+-- expectancy). MODEL outputs (have model_version; experimental). Migration: p14.sql.
+-- Knockout outrights aren't in the odds ingest → no market to pair with (trap #7
+-- exception, same as P11). Recomputed per version per round by etl/knockout_sim.py.
+-- =====================================================================
+create table knockout_sim (
+  team_id        text not null references teams(team_id),
+  group_label    char(1) not null,
+  p_make_r16     numeric not null,                   -- reach R16 (won R32); "reach R32" = group_sim.p_advance
+  p_make_qf      numeric not null,
+  p_make_sf      numeric not null,
+  p_make_final   numeric not null,
+  p_champion     numeric not null,
+  sim_n          int not null,
+  model_version  text not null,
+  computed_at    timestamptz not null default now(),
+  primary key (team_id, model_version)
+);
+
+-- Projected matchups: P(team fills a given R32 slot position). Replaced per version
+-- each run (delete-by-version + insert) so no stale occupant lingers.
+create table bracket_slot_sim (
+  match_no       int not null,                       -- FIFA R32 match number (73..88)
+  side           text not null,                      -- 'home' | 'away'
+  team_id        text not null references teams(team_id),
+  prob           numeric not null,
+  sim_n          int not null,
+  model_version  text not null,
+  computed_at    timestamptz not null default now(),
+  primary key (match_no, side, team_id, model_version)
+);
+create index bracket_slot_sim_lookup on bracket_slot_sim (model_version, match_no, side);

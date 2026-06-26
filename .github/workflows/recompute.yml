@@ -34,5 +34,7 @@ jobs:
         run: python -m etl.scenarios
       - name: Simulate group-stage advancement
         run: python -m etl.simulate
+      - name: Simulate knockout bracket (champion / advancement)
+        run: python -m etl.knockout_sim
       - name: Calibrate (model vs market)
         run: python -m etl.calibrate

@@ -1,0 +1,476 @@
+{
+  "groups": [
+    "A",
+    "B",
+    "C",
+    "D",
+    "E",
+    "F",
+    "G",
+    "H",
+    "I",
+    "J",
+    "K",
+    "L"
+  ],
+  "stage_ranges": {
+    "r32": [
+      73,
+      88
+    ],
+    "r16": [
+      89,
+      96
+    ],
+    "qf": [
+      97,
+      100
+    ],
+    "sf": [
+      101,
+      102
+    ],
+    "3rd": [
+      103,
+      103
+    ],
+    "final": [
+      104,
+      104
+    ]
+  },
+  "matches": {
+    "73": {
+      "match_no": 73,
+      "stage": "r32",
+      "home": {
+        "type": "runner_up",
+        "group": "A"
+      },
+      "away": {
+        "type": "runner_up",
+        "group": "B"
+      }
+    },
+    "74": {
+      "match_no": 74,
+      "stage": "r32",
+      "home": {
+        "type": "winner",
+        "group": "E"
+      },
+      "away": {
+        "type": "third",
+        "candidates": [
+          "A",
+          "B",
+          "C",
+          "D",
+          "F"
+        ]
+      }
+    },
+    "75": {
+      "match_no": 75,
+      "stage": "r32",
+      "home": {
+        "type": "winner",
+        "group": "F"
+      },
+      "away": {
+        "type": "runner_up",
+        "group": "C"
+      }
+    },
+    "76": {
+      "match_no": 76,
+      "stage": "r32",
+      "home": {
+        "type": "winner",
+        "group": "C"
+      },
+      "away": {
+        "type": "runner_up",
+        "group": "F"
+      }
+    },
+    "77": {
+      "match_no": 77,
+      "stage": "r32",
+      "home": {
+        "type": "winner",
+        "group": "I"
+      },
+      "away": {
+        "type": "third",
+        "candidates": [
+          "C",
+          "D",
+          "F",
+          "G",
+          "H"
+        ]
+      }
+    },
+    "78": {
+      "match_no": 78,
+      "stage": "r32",
+      "home": {
+        "type": "runner_up",
+        "group": "E"
+      },
+      "away": {
+        "type": "runner_up",
+        "group": "I"
+      }
+    },
+    "79": {
+      "match_no": 79,
+      "stage": "r32",
+      "home": {
+        "type": "winner",
+        "group": "A"
+      },
+      "away": {
+        "type": "third",
+        "candidates": [
+          "C",
+          "E",
+          "F",
+          "H",
+          "I"
+        ]
+      }
+    },
+    "80": {
+      "match_no": 80,
+      "stage": "r32",
+      "home": {
+        "type": "winner",
+        "group": "L"
+      },
+      "away": {
+        "type": "third",
+        "candidates": [
+          "E",
+          "H",
+          "I",
+          "J",
+          "K"
+        ]
+      }
+    },
+    "81": {
+      "match_no": 81,
+      "stage": "r32",
+      "home": {
+        "type": "winner",
+        "group": "D"
+      },
+      "away": {
+        "type": "third",
+        "candidates": [
+          "B",
+          "E",
+          "F",
+          "I",
+          "J"
+        ]
+      }
+    },
+    "82": {
+      "match_no": 82,
+      "stage": "r32",
+      "home": {
+        "type": "winner",
+        "group": "G"
+      },
+      "away": {
+        "type": "third",
+        "candidates": [
+          "A",
+          "E",
+          "H",
+          "I",
+          "J"
+        ]
+      }
+    },
+    "83": {
+      "match_no": 83,
+      "stage": "r32",
+      "home": {
+        "type": "runner_up",
+        "group": "K"
+      },
+      "away": {
+        "type": "runner_up",
+        "group": "L"
+      }
+    },
+    "84": {
+      "match_no": 84,
+      "stage": "r32",
+      "home": {
+        "type": "winner",
+        "group": "H"
+      },
+      "away": {
+        "type": "runner_up",
+        "group": "J"
+      }
+    },
+    "85": {
+      "match_no": 85,
+      "stage": "r32",
+      "home": {
+        "type": "winner",
+        "group": "B"
+      },
+      "away": {
+        "type": "third",
+        "candidates": [
+          "E",
+          "F",
+          "G",
+          "I",
+          "J"
+        ]
+      }
+    },
+    "86": {
+      "match_no": 86,
+      "stage": "r32",
+      "home": {
+        "type": "winner",
+        "group": "J"
+      },
+      "away": {
+        "type": "runner_up",
+        "group": "H"
+      }
+    },
+    "87": {
+      "match_no": 87,
+      "stage": "r32",
+      "home": {
+        "type": "winner",
+        "group": "K"
+      },
+      "away": {
+        "type": "third",
+        "candidates": [
+          "D",
+          "E",
+          "I",
+          "J",
+          "L"
+        ]
+      }
+    },
+    "88": {
+      "match_no": 88,
+      "stage": "r32",
+      "home": {
+        "type": "runner_up",
+        "group": "D"
+      },
+      "away": {
+        "type": "runner_up",
+        "group": "G"
+      }
+    },
+    "89": {
+      "match_no": 89,
+      "stage": "r16",
+      "home": {
+        "type": "match_winner",
+        "feeder": 74
+      },
+      "away": {
+        "type": "match_winner",
+        "feeder": 77
+      }
+    },
+    "90": {
+      "match_no": 90,
+      "stage": "r16",
+      "home": {
+        "type": "match_winner",
+        "feeder": 73
+      },
+      "away": {
+        "type": "match_winner",
+        "feeder": 75
+      }
+    },
+    "91": {
+      "match_no": 91,
+      "stage": "r16",
+      "home": {
+        "type": "match_winner",
+        "feeder": 76
+      },
+      "away": {
+        "type": "match_winner",
+        "feeder": 78
+      }
+    },
+    "92": {
+      "match_no": 92,
+      "stage": "r16",
+      "home": {
+        "type": "match_winner",
+        "feeder": 79
+      },
+      "away": {
+        "type": "match_winner",
+        "feeder": 80
+      }
+    },
+    "93": {
+      "match_no": 93,
+      "stage": "r16",
+      "home": {
+        "type": "match_winner",
+        "feeder": 83
+      },
+      "away": {
+        "type": "match_winner",
+        "feeder": 84
+      }
+    },
+    "94": {
+      "match_no": 94,
+      "stage": "r16",
+      "home": {
+        "type": "match_winner",
+        "feeder": 81
+      },
+      "away": {
+        "type": "match_winner",
+        "feeder": 82
+      }
+    },
+    "95": {
+      "match_no": 95,
+      "stage": "r16",
+      "home": {
+        "type": "match_winner",
+        "feeder": 86
+      },
+      "away": {
+        "type": "match_winner",
+        "feeder": 88
+      }
+    },
+    "96": {
+      "match_no": 96,
+      "stage": "r16",
+      "home": {
+        "type": "match_winner",
+        "feeder": 85
+      },
+      "away": {
+        "type": "match_winner",
+        "feeder": 87
+      }
+    },
+    "97": {
+      "match_no": 97,
+      "stage": "qf",
+      "home": {
+        "type": "match_winner",
+        "feeder": 89
+      },
+      "away": {
+        "type": "match_winner",
+        "feeder": 90
+      }
+    },
+    "98": {
+      "match_no": 98,
+      "stage": "qf",
+      "home": {
+        "type": "match_winner",
+        "feeder": 93
+      },
+      "away": {
+        "type": "match_winner",
+        "feeder": 94
+      }
+    },
+    "99": {
+      "match_no": 99,
+      "stage": "qf",
+      "home": {
+        "type": "match_winner",
+        "feeder": 91
+      },
+      "away": {
+        "type": "match_winner",
+        "feeder": 92
+      }
+    },
+    "100": {
+      "match_no": 100,
+      "stage": "qf",
+      "home": {
+        "type": "match_winner",
+        "feeder": 95
+      },
+      "away": {
+        "type": "match_winner",
+        "feeder": 96
+      }
+    },
+    "101": {
+      "match_no": 101,
+      "stage": "sf",
+      "home": {
+        "type": "match_winner",
+        "feeder": 97
+      },
+      "away": {
+        "type": "match_winner",
+        "feeder": 98
+      }
+    },
+    "102": {
+      "match_no": 102,
+      "stage": "sf",
+      "home": {
+        "type": "match_winner",
+        "feeder": 99
+      },
+      "away": {
+        "type": "match_winner",
+        "feeder": 100
+      }
+    },
+    "103": {
+      "match_no": 103,
+      "stage": "3rd",
+      "home": {
+        "type": "match_loser",
+        "feeder": 101
+      },
+      "away": {
+        "type": "match_loser",
+        "feeder": 102
+      }
+    },
+    "104": {
+      "match_no": 104,
+      "stage": "final",
+      "home": {
+        "type": "match_winner",
+        "feeder": 101
+      },
+      "away": {
+        "type": "match_winner",
+        "feeder": 102
+      }
+    }
+  }
+}

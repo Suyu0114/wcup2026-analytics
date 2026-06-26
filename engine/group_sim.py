@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from engine.dixon_coles import MODEL_VERSION, MAXG, score_matrix
+from engine.bracket import KO_MATCHES
 
 
 # ---------------------------------------------------------------------------
@@ -266,6 +267,29 @@ def _build_group_standings(
 # §4.5  Main simulation loop (hybrid: outer vectorized + inner per-sim)
 # ---------------------------------------------------------------------------
 
+def _presample(
+    matches: list[GroupMatch], rng: np.random.Generator, N: int
+) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray]]:
+    """Pre-sample all group-match scores (vectorized). Settled matches lock to the real
+    score (D3); unsettled draw from the score-matrix joint distribution (D1). Shared by
+    simulate_groups and simulate_tournament."""
+    match_home_scores: dict[str, np.ndarray] = {}
+    match_away_scores: dict[str, np.ndarray] = {}
+    for m in matches:
+        if m.is_settled:
+            assert m.home_goals is not None and m.away_goals is not None, (
+                f"Settled match {m.match_id} missing goals (verify-don't-assume)"
+            )
+            match_home_scores[m.match_id] = np.full(N, m.home_goals, dtype=int)
+            match_away_scores[m.match_id] = np.full(N, m.away_goals, dtype=int)
+        else:
+            probs, home_g, away_g = _build_flat_distribution(m.lambda_home, m.lambda_away)
+            indices = rng.choice(len(probs), size=N, p=probs)
+            match_home_scores[m.match_id] = home_g[indices]
+            match_away_scores[m.match_id] = away_g[indices]
+    return match_home_scores, match_away_scores
+
+
 def simulate_groups(
     matches: list[GroupMatch],
     team_elos: dict[str, float],
@@ -283,23 +307,7 @@ def simulate_groups(
     N = config.n
 
     # --- (1) Pre-sample all match scores (vectorized) ---
-    match_home_scores: dict[str, np.ndarray] = {}
-    match_away_scores: dict[str, np.ndarray] = {}
-
-    for m in matches:
-        if m.is_settled:
-            # D3: settled match → lock to real score (verify-don't-assume)
-            assert m.home_goals is not None and m.away_goals is not None, (
-                f"Settled match {m.match_id} missing goals (verify-don't-assume)"
-            )
-            match_home_scores[m.match_id] = np.full(N, m.home_goals, dtype=int)
-            match_away_scores[m.match_id] = np.full(N, m.away_goals, dtype=int)
-        else:
-            # D1: multinomial sampling from score matrix joint distribution
-            probs, home_g, away_g = _build_flat_distribution(m.lambda_home, m.lambda_away)
-            indices = rng.choice(len(probs), size=N, p=probs)
-            match_home_scores[m.match_id] = home_g[indices]
-            match_away_scores[m.match_id] = away_g[indices]
+    match_home_scores, match_away_scores = _presample(matches, rng, N)
 
     # --- Build lookup: team → group, and group → matches ---
     team_group: dict[str, str] = {}
@@ -356,3 +364,124 @@ def simulate_groups(
         )
         for tid, c in counts.items()
     ]
+
+
+# ---------------------------------------------------------------------------
+# P14  Full-tournament Monte Carlo (group resolution reused → R32 via Annex C →
+#      single-elimination). Knockout = neutral-site + no-draw (engine/knockout).
+# ---------------------------------------------------------------------------
+
+@dataclass
+class TeamKnockoutResult:
+    """Per-team knockout round-reach + champion probability (P14).
+
+    "reach R32" = qualify = group_sim.p_advance (not re-stored here); this starts at R16.
+    """
+    team_id: str
+    group_label: str
+    p_make_r16: float
+    p_make_qf: float
+    p_make_sf: float
+    p_make_final: float
+    p_champion: float
+    sim_n: int
+    model_version: str
+
+
+@dataclass
+class SlotOccupancy:
+    """Projected matchups: P(team fills a given R32 slot position)."""
+    match_no: int
+    side: str          # 'home' | 'away'
+    team_id: str
+    prob: float
+
+
+def simulate_tournament(
+    matches: list[GroupMatch],
+    team_elos: dict[str, float],
+    config: SimConfig,
+) -> tuple[list[TeamKnockoutResult], list[SlotOccupancy]]:
+    """Monte Carlo the FULL tournament: group stage (reusing the P2 resolution) → R32 via
+    faithful Annex C → single-elimination to the title.
+
+    Returns (per-team round-reach + champion probabilities for all 48 teams, per-R32-slot
+    occupancy). Knockout is neutral-site (no HFA, v1) and no-draw (We; see engine/knockout).
+    Each qualifying third's group origin is recovered from the team→group map — no change
+    to rank_third_places (P14 §B2). Settled group matches are locked (D3) via _presample;
+    settled knockout locking is a post-draw follow-up (needs the real-bracket mapping)."""
+    from engine.knockout import play_bracket, resolve_r32
+
+    rng = np.random.default_rng(config.seed)
+    N = config.n
+    match_home_scores, match_away_scores = _presample(matches, rng, N)
+
+    team_group: dict[str, str] = {}
+    groups: dict[str, list[GroupMatch]] = {}
+    for m in matches:
+        team_group[m.home_team] = m.group_label
+        team_group[m.away_team] = m.group_label
+        groups.setdefault(m.group_label, []).append(m)
+    sorted_group_labels = sorted(groups.keys())
+    all_team_ids = set(team_group)
+
+    champ = {tid: 0 for tid in all_team_ids}
+    reach = {tid: {"r16": 0, "qf": 0, "sf": 0, "final": 0} for tid in all_team_ids}
+    r32_nos = sorted(n for n, mm in KO_MATCHES.items() if mm["stage"] == "r32")
+    occ: dict[tuple[int, str], dict[str, int]] = {
+        (no, side): {} for no in r32_nos for side in ("home", "away")
+    }
+
+    for sim_i in range(N):
+        sim_results: dict[str, tuple[str, str, int, int]] = {}
+        for m in matches:
+            hg = int(match_home_scores[m.match_id][sim_i])
+            ag = int(match_away_scores[m.match_id][sim_i])
+            sim_results[m.match_id] = (m.home_team, m.away_team, hg, ag)
+
+        winners: dict[str, str] = {}
+        runners_up: dict[str, str] = {}
+        third_standings: list[TeamStanding] = []
+        for gl in sorted_group_labels:
+            standings, h2h = _build_group_standings(groups[gl], sim_results, team_elos)
+            ranking = rank_group(standings, h2h, rng)
+            winners[gl] = ranking[0]
+            runners_up[gl] = ranking[1]
+            third_standings.append(next(s for s in standings if s.team_id == ranking[2]))
+
+        # group origin of each qualifying third recovered from team_group (no API change)
+        qualified_thirds = rank_third_places(third_standings, rng)  # top 8 team_ids
+        thirds_by_group = {team_group[tid]: tid for tid in qualified_thirds}
+
+        r32 = resolve_r32(winners, runners_up, thirds_by_group)
+        for no, (h, a) in r32.items():
+            occ[(no, "home")][h] = occ[(no, "home")].get(h, 0) + 1
+            occ[(no, "away")][a] = occ[(no, "away")].get(a, 0) + 1
+
+        champion, reached = play_bracket(r32, team_elos, rng)
+        champ[champion] += 1
+        for tid, stages in reached.items():
+            for st in ("r16", "qf", "sf", "final"):
+                if st in stages:
+                    reach[tid][st] += 1
+
+    team_results = [
+        TeamKnockoutResult(
+            team_id=tid,
+            group_label=team_group[tid],
+            p_make_r16=reach[tid]["r16"] / N,
+            p_make_qf=reach[tid]["qf"] / N,
+            p_make_sf=reach[tid]["sf"] / N,
+            p_make_final=reach[tid]["final"] / N,
+            p_champion=champ[tid] / N,
+            sim_n=N,
+            model_version=MODEL_VERSION,
+        )
+        for tid in sorted(all_team_ids)
+    ]
+    slot_results = [
+        SlotOccupancy(match_no=no, side=side, team_id=tid, prob=cnt / N)
+        for (no, side), counts in occ.items()
+        for tid, cnt in counts.items()
+    ]
+    return team_results, slot_results
