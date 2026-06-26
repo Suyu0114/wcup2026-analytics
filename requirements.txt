@@ -7,6 +7,10 @@ python-dotenv
 # P6 A2 historical fit (fit/fit_dc.py): Poisson GLM + clustered SE
 statsmodels
 
+# P14 Annex C generator (engine/data/gen_annex_c.py): pandas.read_html parser.
+# Generation-time only — runtime reads the committed engine/data/annex_c.json.
+lxml
+
 # Supabase / Postgres client (server-side writes)
 supabase
 

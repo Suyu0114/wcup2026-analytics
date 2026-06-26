@@ -441,3 +441,28 @@ def replace_group_scenarios(rows: list[dict]) -> int:
         client.table("group_scenarios").insert(rows).execute()
     return len(rows)
 
+
+# --- P14 reads/writes (full-tournament knockout Monte Carlo) ---
+
+def upsert_knockout_sim(rows: list[dict]) -> int:
+    """Upsert to knockout_sim on_conflict=(team_id, model_version). Idempotent."""
+    if rows:
+        get_client().table("knockout_sim").upsert(
+            rows, on_conflict="team_id,model_version"
+        ).execute()
+    return len(rows)
+
+
+def replace_bracket_slot_sim(model_version: str, rows: list[dict]) -> int:
+    """Replace this version's bracket_slot_sim rows (delete-by-version + insert).
+
+    Occupancy rows are per (match_no, side, team_id, model_version); a team that no
+    longer reaches a slot would otherwise leave a stale row, so we clear this
+    version's rows first (other versions untouched), then insert. Idempotent.
+    """
+    client = get_client()
+    client.table("bracket_slot_sim").delete().eq("model_version", model_version).execute()
+    if rows:
+        client.table("bracket_slot_sim").insert(rows).execute()
+    return len(rows)
+
