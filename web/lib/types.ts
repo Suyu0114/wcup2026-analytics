@@ -265,3 +265,40 @@ export interface ScenariosResponse {
   computed_at: string | null;
   unavailable: boolean;
 }
+
+// P14 — full-tournament knockout Monte Carlo. MODEL output (experimental; no market to
+// pair with — knockout outrights aren't ingested, trap #7 exception as in P11). "reach
+// R32" = group_sim.p_advance (not re-stored); these start at R16.
+export interface KnockoutTeam {
+  team_id: string;
+  name_en: string;
+  name_zh: string | null;
+  group_label: string;
+  p_make_r16: number;
+  p_make_qf: number;
+  p_make_sf: number;
+  p_make_final: number;
+  p_champion: number;
+}
+
+export interface KnockoutSimResponse {
+  teams: KnockoutTeam[]; // sorted by p_champion desc
+  sim_n: number | null;
+  computed_at: string | null;
+  unavailable: boolean;
+}
+
+// Projected matchups: the most-likely occupant of each R32 slot position.
+export interface BracketSlotTeam {
+  match_no: number;
+  side: 'home' | 'away';
+  team_id: string;
+  name_en: string;
+  name_zh: string | null;
+  prob: number;
+}
+
+export interface BracketSlotsResponse {
+  slots: BracketSlotTeam[]; // top occupant per (match_no, side)
+  unavailable: boolean;
+}

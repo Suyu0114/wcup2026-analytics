@@ -121,7 +121,16 @@
     "toAdvance": "晉級機率",
     "predictionsTitle": "淘汰賽預測",
     "predictionsNote": "單場晉級機率（正規時間 1X2 將平局分攤，即含延長賽／PK），有賠率時並列市場。實驗性。",
-    "empty": "抽籤後顯示淘汰賽對戰"
+    "empty": "抽籤後顯示淘汰賽對戰",
+    "structureTitle": "對戰路徑",
+    "championTitle": "奪冠機率",
+    "championNote": "模型對每隊奪冠與晉級各輪機率的估計（全賽事 Monte Carlo）。實驗性——此項無對應投注市場可比。",
+    "colTeam": "隊伍",
+    "colChampion": "奪冠",
+    "colFinal": "決賽",
+    "colSf": "四強",
+    "colQf": "八強",
+    "colR16": "16強"
   },
   "results": {
     "title": "賽程與成績",

@@ -38,6 +38,10 @@ import type {
   TrackRecordRow,
   TrackRecordSummary,
   TrackRecordTierStat,
+  KnockoutSimResponse,
+  KnockoutTeam,
+  BracketSlotsResponse,
+  BracketSlotTeam,
 } from './types';
 
 interface OddsRow {
@@ -325,6 +329,89 @@ export async function getGroups(modelVersion?: string): Promise<GroupsResponse> 
       groups,
       unavailable: false,
     };
+  } catch {
+    return empty;
+  }
+}
+
+/** Full-tournament knockout sim (P14): per-team round-reach + champion probability, for
+ * the chosen model version. EXPERIMENTAL — no market pairing (knockout outrights aren't
+ * ingested; trap #7 exception, as in P11 scenarios). Pre-migration / pre-run the table is
+ * absent or empty → graceful empty (§6.6). */
+export async function getKnockoutSim(modelVersion?: string): Promise<KnockoutSimResponse> {
+  const mv = resolveModelVersion(modelVersion);
+  const empty: KnockoutSimResponse = { teams: [], sim_n: null, computed_at: null, unavailable: true };
+  const client = getSupabase();
+  if (!client) return empty;
+  try {
+    const [{ data: sim, error: se }, { data: teams, error: te }] = await Promise.all([
+      client
+        .from('knockout_sim')
+        .select('team_id,group_label,p_make_r16,p_make_qf,p_make_sf,p_make_final,p_champion,sim_n,computed_at')
+        .eq('model_version', mv),
+      client.from('teams').select('team_id,name_en,name_zh'),
+    ]);
+    if (se || te) throw se || te;
+    const teamMap = new Map((teams ?? []).map((t) => [t.team_id, t]));
+    let simN: number | null = null;
+    let computedAt: string | null = null;
+    const rows: KnockoutTeam[] = (sim ?? []).map((r) => {
+      simN = Number(r.sim_n);
+      computedAt = r.computed_at;
+      const t = teamMap.get(r.team_id);
+      return {
+        team_id: r.team_id,
+        name_en: t?.name_en ?? r.team_id,
+        name_zh: t?.name_zh ?? null,
+        group_label: r.group_label,
+        p_make_r16: Number(r.p_make_r16),
+        p_make_qf: Number(r.p_make_qf),
+        p_make_sf: Number(r.p_make_sf),
+        p_make_final: Number(r.p_make_final),
+        p_champion: Number(r.p_champion),
+      };
+    });
+    rows.sort((a, b) => b.p_champion - a.p_champion);
+    return { teams: rows, sim_n: simN, computed_at: computedAt, unavailable: false };
+  } catch {
+    return empty;
+  }
+}
+
+/** Projected matchups (P14): the most-likely occupant of each R32 slot position, for the
+ * chosen model version. EXPERIMENTAL, same caveats as getKnockoutSim. Graceful empty. */
+export async function getBracketSlots(modelVersion?: string): Promise<BracketSlotsResponse> {
+  const mv = resolveModelVersion(modelVersion);
+  const empty: BracketSlotsResponse = { slots: [], unavailable: true };
+  const client = getSupabase();
+  if (!client) return empty;
+  try {
+    const [{ data: rows, error: re }, { data: teams, error: te }] = await Promise.all([
+      client.from('bracket_slot_sim').select('match_no,side,team_id,prob').eq('model_version', mv),
+      client.from('teams').select('team_id,name_en,name_zh'),
+    ]);
+    if (re || te) throw re || te;
+    const teamMap = new Map((teams ?? []).map((t) => [t.team_id, t]));
+    // keep only the top occupant per (match_no, side)
+    const best = new Map<string, { match_no: number; side: string; team_id: string; prob: number }>();
+    for (const r of rows ?? []) {
+      const key = `${r.match_no}-${r.side}`;
+      const p = Number(r.prob);
+      const cur = best.get(key);
+      if (!cur || p > cur.prob) best.set(key, { match_no: Number(r.match_no), side: r.side, team_id: r.team_id, prob: p });
+    }
+    const slots: BracketSlotTeam[] = [...best.values()].map((s) => {
+      const t = teamMap.get(s.team_id);
+      return {
+        match_no: s.match_no,
+        side: s.side as 'home' | 'away',
+        team_id: s.team_id,
+        name_en: t?.name_en ?? s.team_id,
+        name_zh: t?.name_zh ?? null,
+        prob: s.prob,
+      };
+    });
+    return { slots, unavailable: false };
   } catch {
     return empty;
   }
