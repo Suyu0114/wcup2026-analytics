@@ -125,6 +125,7 @@
     "structureTitle": "對戰路徑",
     "championTitle": "奪冠機率",
     "championNote": "模型對每隊奪冠與晉級各輪機率的估計（全賽事 Monte Carlo）。實驗性——此項無對應投注市場可比。",
+    "championSummary": "{team} {pct} 領先",
     "colTeam": "隊伍",
     "colChampion": "奪冠",
     "colFinal": "決賽",
