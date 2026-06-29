@@ -5,7 +5,13 @@ tests pin the shape invariants and the fail-loud behavior of host_flags().
 """
 import pytest
 
-from etl.venues import HOST_TEAMS, MANUAL_VENUE, STADIUM_COUNTRY, host_flags
+from etl.venues import (
+    HOST_TEAMS,
+    KNOCKOUT_VENUE_BY_KICKOFF,
+    MANUAL_VENUE,
+    STADIUM_COUNTRY,
+    host_flags,
+)
 
 
 def test_stadium_country_shape():
@@ -48,3 +54,35 @@ def test_host_flags_fd_venue_overrides():
     assert host_flags("000000", "BR", "CA", fd_venue="Vancouver") == (False, True)
     # Host playing in the *other* hosts' country: no advantage either side.
     assert host_flags("000000", "CA", "BR", fd_venue="Seattle") == (False, False)
+
+
+# --- Knockout slot schedule (post-draw venue resolution by kick-off) ---
+
+def test_knockout_schedule_shape():
+    assert len(KNOCKOUT_VENUE_BY_KICKOFF) == 32                 # m73..m104, FIFA slots
+    assert all(v in STADIUM_COUNTRY for v in KNOCKOUT_VENUE_BY_KICKOFF.values())
+
+
+def test_host_flags_knockout_resolves_via_schedule():
+    # m81 (Levi's, Santa Clara): host at home resolves from the slot schedule, no MANUAL row.
+    assert host_flags("KO1", "US", "BA", None, "2026-07-02T00:00:00Z") == (True, False)
+
+
+def test_host_flags_knockout_tolerates_kickoff_drift():
+    # 20-min drift from the m79 (Azteca, Mexico City) slot still resolves to the host venue.
+    assert host_flags("KO2", "MX", "EC", None, "2026-07-01T01:20:00Z") == (True, False)
+
+
+def test_host_flags_knockout_host_listed_away():
+    # Host as the away side at its own venue (fd's round-3 quirk can recur in knockout).
+    assert host_flags("KO3", "XX", "CA", None, "2026-07-07T20:00:00Z") == (False, True)  # m96 Vancouver
+
+
+def test_host_flags_knockout_non_host_needs_no_venue():
+    assert host_flags("KO4", "BR", "JP", None, "2026-06-29T17:00:00Z") == (False, False)
+
+
+def test_host_flags_knockout_unscheduled_kickoff_raises():
+    # A host match whose kick-off matches no slot must fail loud (e.g. a real schedule change).
+    with pytest.raises(ValueError, match="TA1"):
+        host_flags("KO5", "US", "BR", None, "2026-08-01T12:00:00Z")

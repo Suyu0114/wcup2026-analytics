@@ -45,20 +45,28 @@ World Cup 2026 Analytics — 賽事預測/分析平台的工程指南。
 - **重用、不分叉**：組內排名走 [engine/standings.py](engine/standings.py) 的決定性顯示排名思路、H2H 數學共用 `_compute_h2h_stats`；**不**呼叫 `group_sim.rank_group`/`rank_third_places` 當事實（其 `…→Elo→random` 是模擬強制全序，當事實會謊報——同 P8 分叉理由）。
 - **前端 `/scenarios`**（[web/app/[locale]/scenarios/page.tsx](web/app/[locale]/scenarios/page.tsx)，`getScenarios()`，**force-dynamic**）：按組編排（mini 積分榜 context + [ScenarioCard](web/components/ScenarioCard.tsx)）。`alive` 隊附 `group_sim` 機率小字，**標「模型・實驗性」、受 `?v=`、缺則 graceful、措辭不得讀起來像 clinch**（事實/模型分離，trap #13b；此處**無對應市場盤** → hard rule #7 並列義務不適用）。
 
-### P13 — 淘汰賽 bracket 頁（code 完成；規劃 [docs/p13-knockout-page-plan.md](docs/p13-knockout-page-plan.md)。配對的 P14 模型＝[docs/p14-knockout-model-plan.md](docs/p14-knockout-model-plan.md)，**未實作**）
+### P13 — 淘汰賽 bracket 頁（code 完成；規劃 [docs/p13-knockout-page-plan.md](docs/p13-knockout-page-plan.md)。配對的 P14 模型＝[docs/p14-knockout-model-plan.md](docs/p14-knockout-model-plan.md)，**已實作**）
 - **2026 新制**：12 組 → R32 = 各組前二（24）＋ **8 最佳第三名**；8 個第三名照 FIFA **Annex C（C(12,8)=495）** 配入 R32 槽。抽籤後真實 bracket 由 fd 直接給（**本頁顯示用不到 Annex C**；模擬才需＝P14）。
 - **canonical bracket＝[engine/bracket.py](engine/bracket.py)（single source of truth）**：matches 73–104 的 slot 模板＋8 個第三名候選集＋feeder tree。web 端讀**生成**的 [web/lib/bracket.data.json](web/lib/bracket.data.json)（`python web/tests/fixtures/gen_bracket.py` 重生；parity 由 [tests/test_bracket.py](tests/test_bracket.py) 把關，比照 golden_vectors，trap #13c）。structural 不變量測試（12 勝者/亞軍各一、8 第三名槽、候選集 40、tree 完整）。**改 engine/bracket.py 要重生 JSON**。
 - **前端 `/bracket`**（[web/app/[locale]/bracket/page.tsx](web/app/[locale]/bracket/page.tsx)，**force-dynamic**、受 `?v=`）：[BracketView](web/components/BracketView.tsx) 永遠畫 slot 模板（抽籤前 TBD）；抽籤後 `getKnockout(v)`（與 `getMatches` 共用 `buildMatchViews`）列出真實淘汰賽 [KnockoutMatchCard](web/components/KnockoutMatchCard.tsx)：**single-match advance %（We＝p_home+½·p_draw，trap #6）＋ model vs market 並列**。
 - **predict 免改**：[etl/predict.py](etl/predict.py) 無 stage filter，淘汰賽 row 一有隊即自動預測（中立場，HFA 僅地主自家場經 is_host flags）。
-- ⚠️ **post-draw 待補（gated on 抽籤）**：(a) 淘汰賽 host 場 venue 補進 [etl/venues.py](etl/venues.py) `MANUAL_VENUE`（缺則 `host_flags` raise）；(b) 策展 match_no↔fd match_id 後可把真實場次填進 bracket 格（目前真實場次走獨立清單，非 in-cell）；(c) odds 同隊再遇去重 collision（trap #12）；(d) fd 是否可靠填淘汰賽隊伍待驗，不行需手動 bracket 種子。
+- ⚠️ **post-draw 狀態（抽籤後，2026-06-28）**：(a) venue **已解**＝P16 schedule 預策展（kickoff-keyed，含 R16→Final）；(c) odds 去重 **已解**＝P16 `pick_match` 時間消歧；(d) **已驗**＝fd 抽籤後可靠填淘汰賽隊伍（不需手動種子）；**(b) 仍待**＝`match_no↔fd match_id` 策展才能把真實場次填進 bracket **格內**（目前真實場次走獨立 match-card 清單，格內用 `bracket_slot_sim`）。見 [docs/p16-knockout-postdraw-spec.md](docs/p16-knockout-postdraw-spec.md)。
 
-### P14 — 淘汰賽奪冠/晉級模擬（backend code 完成、前端待做；規劃 [docs/p14-knockout-model-plan.md](docs/p14-knockout-model-plan.md)）
+### P14 — 淘汰賽奪冠/晉級模擬（backend＋前端 code 完成；規劃 [docs/p14-knockout-model-plan.md](docs/p14-knockout-model-plan.md)）
 - **bracket-wide Monte Carlo**：小組賽解析（重用 P2）→ R32（**faithful Annex C**）→ 單淘汰至奪冠。產 per-team `p_make_r16/qf/sf/final`＋`p_champion`（`knockout_sim`）＋ per-R32-slot 佔據（`bracket_slot_sim`＝projected matchups）。**模型輸出**（有 model_version、實驗性）。
 - **Annex C＝[engine/data/annex_c.json](engine/data/annex_c.json)（495 列，事實非可推導）**：C(12,8) 每組合每槽各有 **3–214 種合法配對** → FIFA 指定，**不可算**。由 [engine/data/gen_annex_c.py](engine/data/gen_annex_c.py) 從 Wikipedia「Combinations…round of 32」表 scrape＋**硬驗證**（495、雙射、no same-group、且每 `3X` ∈ [engine/bracket.py](engine/bracket.py) 候選集＝與已驗 bracket 交叉核對）。重抓需 `requests`+`lxml`。
 - **引擎 [engine/knockout.py](engine/knockout.py)**：`advance_prob`＝We＝`p_home+½·p_draw`（無平局，含 ET/PK，trap #6；**不另模 PK**）；`resolve_r32`（Annex C 配第三名）；`play_bracket`。**淘汰賽中立場（v1 無 HFA）**——地主自家場 host-aware 為 follow-up（需 slot→venue 策展，同 P13 gate；`advance_prob` 已留 host 參數）。
 - **driver [engine/group_sim.py](engine/group_sim.py) `simulate_tournament`**：重用 P2 解析（`_presample` 抽出共用；**不改 `rank_third_places` 簽名**——第三名組來源用 `team_group` map 反查，§B2）。settled 小組賽鎖定（D3）；**settled 淘汰賽鎖定為 post-draw follow-up**。
-- **job [etl/knockout_sim.py](etl/knockout_sim.py)**：讀同 simulate 的 group matches+preds+Elo → `knockout_sim` upsert＋`bracket_slot_sim` delete-by-version+insert。**每輪對 v1.1、v1.2 各跑一次**（接在 `etl.simulate` 後；須先套 [etl/sql/migrations/p14.sql](etl/sql/migrations/p14.sql)）。**recompute.yml 待 p14.sql 套用後再加入**（否則寫不存在的表會炸）。
-- ⚠️ **前端待做**：champion/advancement/projected UI（`getKnockoutSim`/`getBracketSlots`，**experimental、無對應市場盤＝trap #7 例外**，同 P11）。
+- **job [etl/knockout_sim.py](etl/knockout_sim.py)**：讀同 simulate 的 group matches+preds+Elo → `knockout_sim` upsert＋`bracket_slot_sim` delete-by-version+insert。**每輪對 v1.1、v1.2 各跑一次**（接在 `etl.simulate` 後；須先套 [etl/sql/migrations/p14.sql](etl/sql/migrations/p14.sql)）。**recompute.yml 已加入 `knockout_sim`（P16 起兩版各跑）**；⚠️ **p14.sql 未套用前 recompute 會寫不存在的表而炸 → 先套**。
+- **前端已完成**：champion/advancement/projected UI（`getKnockoutSim`/`getBracketSlots`，**experimental、無對應市場盤＝trap #7 例外**，同 P11）＋ P15 ESPN-style bracket tree／collapsible champion odds。
+
+### P16 — 淘汰賽 post-draw 啟用（code 完成；spec [docs/p16-knockout-postdraw-spec.md](docs/p16-knockout-postdraw-spec.md)）
+小組賽結束＋抽籤落地後，補上 P13 §A0 兩個 fail-loud 缺口、讓淘汰賽預測一鍵跑起來。前端（P13/P14/P15）＋引擎＋jobs 皆已 code-complete，本次只動資料管線。
+- **A1 venue 預策展**：[etl/venues.py](etl/venues.py) 新增 `KNOCKOUT_VENUE_BY_KICKOFF`（全 32 場 m73–m104，**kickoff_utc → venue**，FIFA slot 固定＝抽籤前可知，provenance＝官方賽程，見 spec）。`host_flags` 加 `kickoff_utc` 參數，序 `fd_venue → MANUAL_VENUE（顯式覆寫）→ schedule（最近 ±75 min）`；slot 間隔 ≥3.5h → 唯一＋容忍漂移。**R16→Final 自動涵蓋**（host 晉級不必逐場手補）；對不到 slot 仍 raise（fail-loud）。import-time 守門（32 槽、venue∈STADIUM_COUNTRY、無近槽）。[etl/ingest_fixtures.py](etl/ingest_fixtures.py) `_match_row` 多傳 `f.kickoff_utc`。**不交換 matches 定向**（地主列客隊走 `is_host_away`，trap #5）。
+- **A2 odds knockout-safe**：[etl/ingest_odds.py](etl/ingest_odds.py) `build_pair_index` 回 `frozenset→list`（不再 collision raise）；新增 `pick_match` 以 `commence_time` 挑最近 kick-off（小組賽單候選＝原行為；淘汰賽 rematch 正確路由，trap #12 解）。
+- **A3 recompute 兩版**：[.github/workflows/recompute.yml](.github/workflows/recompute.yml) `simulate`/`knockout_sim` 各跑 `dc-v1.2`+`dc-v1.1`（`?v=` 切換器在 groups/bracket 都有資料）。
+- **誠實**：v1.1≈v1.2（小組賽鎖定＋`knockout_sim` 用單一 current Elo＝非版本化）；v1.1 淘汰賽 match cards graceful 空（predict 只出 dc-v1.2）。
+- **操作**：先在 Supabase 套 [p14.sql](etl/sql/migrations/p14.sql)（+ [p12.sql](etl/sql/migrations/p12.sql)），再依 runbook 跑 `ingest_fixtures → predict --only-unsettled → simulate×2 → knockout_sim×2 → ingest_odds → calibrate`（見 spec §B/§C）。
 
 ## 結構
 ```

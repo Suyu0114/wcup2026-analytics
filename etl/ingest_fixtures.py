@@ -68,7 +68,10 @@ def _resolve_score(
 
 def _match_row(f: Fixture, home_id: str, away_id: str, overrides: dict[str, tuple[int, int]]) -> dict:
     # P6 A1: host venue lookup (raises for a host match with no curated venue).
-    is_host_home, is_host_away = venues.host_flags(f.match_id, home_id, away_id, f.venue)
+    # kickoff_utc lets host_flags resolve knockout host venues via the FIFA slot schedule.
+    is_host_home, is_host_away = venues.host_flags(
+        f.match_id, home_id, away_id, f.venue, f.kickoff_utc
+    )
     status, home_goals, away_goals = _resolve_score(f, overrides)
     return {
         "match_id": f.match_id,

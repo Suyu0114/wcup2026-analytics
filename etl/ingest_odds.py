@@ -26,15 +26,26 @@ def _parse(ts: str) -> datetime:
     return datetime.fromisoformat(ts.replace("Z", "+00:00"))
 
 
-def build_pair_index(matches: list[dict]) -> dict[frozenset, dict]:
-    """{home,away} -> match. Group stage: each pair unique. Collision -> raise (spec §9 A)."""
-    idx: dict[frozenset, dict] = {}
+def build_pair_index(matches: list[dict]) -> dict[frozenset, list[dict]]:
+    """{home,away} -> [match, ...]. A pair can recur once the knockout stage starts (group
+    meeting + knockout rematch), so candidates are kept as a list and disambiguated by
+    kick-off time at lookup (pick_match), per spec §9 A's "needs time/round disambiguation"."""
+    idx: dict[frozenset, list[dict]] = {}
     for m in matches:
-        key = frozenset((m["home_team"], m["away_team"]))
-        if key in idx:
-            raise ValueError(f"pair collision {set(key)} — knockout rematch needs time/round disambiguation")
-        idx[key] = m
+        idx.setdefault(frozenset((m["home_team"], m["away_team"])), []).append(m)
     return idx
+
+
+def pick_match(candidates: list[dict], commence_time: str) -> dict | None:
+    """The candidate whose kick-off is nearest the odds event's commence_time (rematch-safe).
+
+    Group stage each pair has one candidate, so this is the identity; for a knockout rematch
+    the live odds event sits next to the knockout fixture, not the long-settled group game.
+    """
+    if not candidates:
+        return None
+    ct = _parse(commence_time)
+    return min(candidates, key=lambda m: abs((_parse(m["kickoff_utc"]) - ct).total_seconds()))
 
 
 def map_outcome(market_key: str, name: str, point, match: dict, alias: dict[str, str]):
@@ -91,7 +102,7 @@ def run(dry_run: bool = False) -> list[dict]:
         a_id, b_id = alias.get(ev.home_team), alias.get(ev.away_team)
         if not a_id or not b_id:
             raise ValueError(f"odds event unresolved: {ev.home_team!r}/{ev.away_team!r} (run ingest_odds_aliases)")
-        m = pair_index.get(frozenset((a_id, b_id)))
+        m = pick_match(pair_index.get(frozenset((a_id, b_id)), []), ev.commence_time)
         if m is None:
             skipped += 1                                     # not in our matches (e.g. not group) -> graceful
             continue
