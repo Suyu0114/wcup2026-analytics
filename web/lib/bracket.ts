@@ -48,3 +48,36 @@ export function bracketMatchesByStage(stage: KnockoutStage): BracketMatch[] {
 export function bracketMatch(matchNo: number): BracketMatch | undefined {
   return DATA.matches[String(matchNo)];
 }
+
+/** The feeder match number of a slot (winner/loser of an earlier match), else null. */
+export function feederOf(slot: BracketSlot): number | null {
+  return slot.type === 'match_winner' || slot.type === 'match_loser' ? slot.feeder : null;
+}
+
+// Display order: match_no order is SCRAMBLED vs the tree (e.g. R16 M89 is fed by R32 M74 &
+// M77, which aren't adjacent). DFS from the Final assigns each R32 leaf a sequence index and
+// each internal match the mean of its two feeders — so sorting a round by this index lines
+// every match up vertically with its feeders. (The 3rd-place M103 isn't in the Final subtree.)
+const ORDER: Record<number, number> = {};
+(function computeOrder() {
+  let leaf = 0;
+  function assign(no: number): number {
+    const m = DATA.matches[String(no)];
+    const hf = feederOf(m.home);
+    const af = feederOf(m.away);
+    if (hf === null || af === null) {
+      ORDER[no] = leaf++;
+      return ORDER[no];
+    }
+    ORDER[no] = (assign(hf) + assign(af)) / 2;
+    return ORDER[no];
+  }
+  assign(104);
+})();
+
+/** Matches of a stage in bracket DISPLAY order (top→bottom), not match_no order. */
+export function bracketColumn(stage: KnockoutStage): BracketMatch[] {
+  return bracketMatchesByStage(stage).sort(
+    (a, b) => (ORDER[a.match_no] ?? 0) - (ORDER[b.match_no] ?? 0),
+  );
+}

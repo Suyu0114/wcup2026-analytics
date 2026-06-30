@@ -8,7 +8,7 @@ export interface MatchOption {
   homeName: string;
   awayName: string;
   kickoff: string;
-  existing: { home: number; away: number } | null;
+  existing: { home: number; away: number; overrideFd: boolean } | null;
 }
 
 type Status = 'idle' | 'saving' | 'ok' | 'error';
@@ -17,6 +17,7 @@ export default function ScoreEntryForm({ matches }: { matches: MatchOption[] }) 
   const [matchId, setMatchId] = useState('');
   const [home, setHome] = useState('');
   const [away, setAway] = useState('');
+  const [overrideFd, setOverrideFd] = useState(false);
   const [status, setStatus] = useState<Status>('idle');
   const [message, setMessage] = useState('');
 
@@ -32,6 +33,7 @@ export default function ScoreEntryForm({ matches }: { matches: MatchOption[] }) 
     const m = matches.find((x) => x.matchId === id);
     setHome(m?.existing ? String(m.existing.home) : '');
     setAway(m?.existing ? String(m.existing.away) : '');
+    setOverrideFd(m?.existing?.overrideFd ?? false);
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -49,7 +51,7 @@ export default function ScoreEntryForm({ matches }: { matches: MatchOption[] }) 
       const res = await fetch('/api/admin/score', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ matchId, homeGoals: hg, awayGoals: ag }),
+        body: JSON.stringify({ matchId, homeGoals: hg, awayGoals: ag, overrideFd }),
       });
       const data = (await res.json().catch(() => ({}))) as {
         error?: string;
@@ -122,6 +124,23 @@ export default function ScoreEntryForm({ matches }: { matches: MatchOption[] }) 
             />
           </label>
         </div>
+      )}
+
+      {selected && (
+        <label className="flex items-start gap-2 text-sm text-slate-600">
+          <input
+            type="checkbox"
+            checked={overrideFd}
+            onChange={(e) => setOverrideFd(e.target.checked)}
+            className="mt-0.5"
+          />
+          <span>
+            football-data 比分有誤，強制使用此比分
+            <span className="block text-xs text-slate-400">
+              只有在資料來源比分確定錯誤時才勾選；勾選後重算不會因為來源比分不符而中止。
+            </span>
+          </span>
+        </label>
       )}
 
       {message && (

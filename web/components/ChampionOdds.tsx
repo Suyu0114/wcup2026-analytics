@@ -19,16 +19,27 @@ export default function ChampionOdds({
   limit?: number;
 }) {
   const t = useTranslations();
+  if (teams.length === 0) return null;
+  const leader = teams[0];
   const shown = teams.slice(0, limit);
 
+  // Collapsible (native <details>, DEFAULT COLLAPSED) so the bracket below is reachable; the
+  // summary line shows the current leader (P15). server-compatible — no client JS.
   return (
-    <section className="space-y-3">
-      <div className="flex items-center gap-2">
-        <h2 className="text-lg font-semibold text-slate-900">{t('bracket.championTitle')}</h2>
+    <details className="rounded-lg border border-slate-200 bg-white">
+      <summary className="cursor-pointer select-none px-4 py-3">
+        <span className="text-lg font-semibold text-slate-900">{t('bracket.championTitle')}</span>
         <ExperimentalTag strong />
-      </div>
-      <p className="text-sm text-slate-500">{t('bracket.championNote')}</p>
-      <div className="overflow-x-auto">
+        <span className="ml-2 text-sm text-slate-500">
+          {t('bracket.championSummary', {
+            team: displayTeamName(leader, locale),
+            pct: formatPercent(leader.p_champion),
+          })}
+        </span>
+      </summary>
+      <div className="space-y-3 border-t border-slate-100 px-4 py-3">
+        <p className="text-sm text-slate-500">{t('bracket.championNote')}</p>
+        <div className="overflow-x-auto">
         <table className="w-full min-w-[34rem] text-sm">
           <thead>
             <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
@@ -59,7 +70,8 @@ export default function ChampionOdds({
             ))}
           </tbody>
         </table>
+        </div>
       </div>
-    </section>
+    </details>
   );
 }

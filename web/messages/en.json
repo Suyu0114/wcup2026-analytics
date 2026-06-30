@@ -125,6 +125,7 @@
     "structureTitle": "Bracket path",
     "championTitle": "Title to win",
     "championNote": "Each team's modelled chance to win the tournament and to reach each round, from the full-tournament Monte Carlo. Experimental — there is no betting market for these to compare against.",
+    "championSummary": "{team} {pct} to win",
     "colTeam": "Team",
     "colChampion": "Champion",
     "colFinal": "Final",

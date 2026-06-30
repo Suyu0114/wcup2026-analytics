@@ -248,20 +248,40 @@ def fetch_manual_results() -> dict[str, tuple[int, int]]:
     return {r["match_id"]: (int(r["home_goals"]), int(r["away_goals"])) for r in rows}
 
 
+def fetch_fd_override_ids() -> set[str]:
+    """match_ids whose curated score is flagged authoritative over a *conflicting* fd
+    score (manual_results.override_fd = true, P12). ingest_fixtures warns instead of
+    failing loud for these (fd is known-wrong, not just null)."""
+    rows = (
+        get_client()
+        .table("manual_results")
+        .select("match_id")
+        .eq("override_fd", True)
+        .execute()
+        .data
+    )
+    return {r["match_id"] for r in rows}
+
+
 def upsert_manual_result(
     match_id: str,
     home_goals: int,
     away_goals: int,
     entered_by: str | None = None,
     note: str | None = None,
+    override_fd: bool = False,
 ) -> None:
-    """Upsert one curated result on match_id (idempotent). Source for matchday recompute."""
+    """Upsert one curated result on match_id (idempotent). Source for matchday recompute.
+
+    override_fd=True marks the curated score authoritative over a conflicting non-null
+    football-data score (P12; fd is wrong, not just null)."""
     row = {
         "match_id": match_id,
         "home_goals": home_goals,
         "away_goals": away_goals,
         "entered_by": entered_by,
         "note": note,
+        "override_fd": override_fd,
     }
     get_client().table("manual_results").upsert([row], on_conflict="match_id").execute()
 

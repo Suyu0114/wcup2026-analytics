@@ -1,7 +1,7 @@
 """Odds ingest + model_total_lines pure mapping logic (spec §4.1 / §4.4) — offline."""
 import pytest
 
-from etl.ingest_odds import build_pair_index, map_outcome, pinnacle_main_point
+from etl.ingest_odds import build_pair_index, map_outcome, pick_match, pinnacle_main_point
 from etl.model_lines import TOTALS_GRID, line_probs, totals_distribution
 from sources.odds_source import OddsBookmaker, OddsEvent, OddsMarket, OddsOutcome
 
@@ -9,15 +9,24 @@ MATCH = {"match_id": "X", "home_team": "MX", "away_team": "ZA", "kickoff_utc": "
 ALIAS = {"Mexico": "MX", "South Africa": "ZA"}
 
 
-def test_build_pair_index_unique():
+def test_build_pair_index_groups_candidates():
     idx = build_pair_index([MATCH])
-    assert idx[frozenset(("MX", "ZA"))] is MATCH
+    assert idx[frozenset(("MX", "ZA"))] == [MATCH]
 
 
-def test_build_pair_index_collision_raises():
-    other = {"match_id": "Y", "home_team": "ZA", "away_team": "MX", "kickoff_utc": "x"}
-    with pytest.raises(ValueError, match="collision"):
-        build_pair_index([MATCH, other])
+def test_pick_match_disambiguates_knockout_rematch():
+    # The same pair can meet twice: a settled group game and a later knockout rematch.
+    knockout = {"match_id": "K", "home_team": "ZA", "away_team": "MX",
+                "kickoff_utc": "2026-07-02T19:00:00+00:00"}
+    cands = build_pair_index([MATCH, knockout])[frozenset(("MX", "ZA"))]
+    assert len(cands) == 2
+    # A live odds event sits next to one fixture's kickoff -> routes there, not the other.
+    assert pick_match(cands, "2026-07-02T18:50:00+00:00") is knockout
+    assert pick_match(cands, "2026-06-11T18:55:00+00:00") is MATCH
+
+
+def test_pick_match_empty_returns_none():
+    assert pick_match([], "2026-07-02T19:00:00+00:00") is None
 
 
 def test_map_outcome_h2h_orientation():

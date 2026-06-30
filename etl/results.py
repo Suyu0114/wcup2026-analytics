@@ -9,6 +9,12 @@ fd FINISHED-without-score is left UNSETTLED (not promoted to 'final' without a
 score — data integrity over approximation). Remove an entry once fd reliably
 serves the same score, if you want fd to own it again.
 
+When fd serves a *wrong* non-null score (not null — actually wrong; verified
+2026-06-21: match 537371 Spain v Saudi Arabia, fd 5-0 vs actual 4-0), the conflict
+guard would block the whole ingest. The escape hatch lives on the DB row, not here:
+set manual_results.override_fd=true (P12, or tick the admin "fd 比分有誤" box) so the
+curated score wins over fd with a loud WARNING instead of a raise.
+
 Provenance: each entry is the official full-time (90'+stoppage, pre-ET/pens)
 score, verified by hand against the official record before being added. Add an
 entry only for a result you've personally confirmed.

@@ -52,3 +52,6 @@ Thumbs.db
 
 # ─── Notebooks ──────────────────────────────────────────────
 .ipynb_checkpoints/
+
+# ─── Local drafts (Medium articles etc. — not for the repo) ──
+docs/medium/

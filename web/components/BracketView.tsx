@@ -1,24 +1,27 @@
+'use client';
+
+import { useState, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   BRACKET_COLUMNS,
-  bracketMatchesByStage,
+  bracketColumn,
+  bracketMatch,
+  feederOf,
   type BracketMatch,
-  type BracketSlot,
   type KnockoutStage,
 } from '@/lib/bracket';
 import type { BracketSlotTeam } from '@/lib/types';
 import type { Locale } from '@/lib/routing';
-import { displayTeamName } from '@/lib/teamName';
-import { formatPercent } from '@/lib/format';
+import BracketCell from './BracketCell';
 
-// The canonical knockout bracket as columns R32→Final (third-place play-off shown apart).
-// Always renders the structural slot template (from engine/bracket.py via bracket.data.json).
-// When `projected` is supplied (P14 bracket_slot_sim) the R32 cells also show the most-likely
-// occupant of each slot + probability — experimental, model-only. Server-compatible.
+// ESPN-style knockout bracket (P15): a connected tree on desktop, round tabs on mobile.
+// The tree is rendered RECURSIVELY from the Final (so each match's two feeders are siblings
+// and naturally adjacent — match_no order is scrambled vs the tree); equal-flex feeder columns
+// auto-centre each later round between its two feeders. The third-place play-off (M103) is
+// shown apart (it isn't in the Final's subtree). Client island: only the mobile tab is stateful.
 
-// The DB/engine stage value '3rd' maps to the i18n key 'third'.
-function stageLabelKey(stage: KnockoutStage): string {
-  return stage === '3rd' ? 'stage.third' : `stage.${stage}`;
+function stageLabelKey(stage: KnockoutStage): 'stage.r32' {
+  return (stage === '3rd' ? 'stage.third' : `stage.${stage}`) as 'stage.r32';
 }
 
 export default function BracketView({
@@ -29,80 +32,107 @@ export default function BracketView({
   locale?: Locale;
 } = {}) {
   const t = useTranslations();
+  const [active, setActive] = useState<KnockoutStage>('r32');
 
-  function slotLabel(slot: BracketSlot): string {
-    switch (slot.type) {
-      case 'winner':
-        return t('bracket.slotWinner', { group: slot.group });
-      case 'runner_up':
-        return t('bracket.slotRunnerUp', { group: slot.group });
-      case 'third':
-        return t('bracket.slotThird', { groups: slot.candidates.join('/') });
-      case 'match_winner':
-        return t('bracket.slotMatchWinner', { n: slot.feeder });
-      case 'match_loser':
-        return t('bracket.slotMatchLoser', { n: slot.feeder });
+  const cell = (m: BracketMatch) => <BracketCell match={m} projected={projected} locale={locale} />;
+  const thirdPlace = bracketColumn('3rd');
+
+  function renderNode(matchNo: number): ReactNode {
+    const m = bracketMatch(matchNo)!;
+    const hf = feederOf(m.home);
+    const af = feederOf(m.away);
+
+    if (hf === null || af === null) {
+      return (
+        <div className="flex flex-1 items-center py-1">
+          <div className="w-44 shrink-0">{cell(m)}</div>
+        </div>
+      );
     }
+    return (
+      <div className="flex flex-1 items-stretch">
+        <div className="flex flex-col">
+          {renderNode(hf)}
+          {renderNode(af)}
+        </div>
+        {/* elbow connector: two feeder stubs → vertical spine → horizontal into this card */}
+        <div className="relative w-6 shrink-0 before:absolute before:left-0 before:right-1/2 before:top-1/4 before:border-t before:border-slate-300 before:content-[''] after:absolute after:left-0 after:right-1/2 after:bottom-1/4 after:border-t after:border-slate-300 after:content-['']">
+          <span className="absolute bottom-1/4 left-1/2 top-1/4 border-l border-slate-300" />
+          <span className="absolute left-1/2 right-0 top-1/2 border-t border-slate-300" />
+        </div>
+        <div className="flex items-center py-1">
+          <div className="w-44 shrink-0">{cell(m)}</div>
+        </div>
+      </div>
+    );
   }
 
-  function Side({ slot, occupant }: { slot: BracketSlot; occupant?: BracketSlotTeam }) {
-    return (
-      <div>
-        <div className="truncate text-slate-700">{slotLabel(slot)}</div>
-        {occupant && (
-          <div className="truncate text-[11px] font-medium text-sky-700">
-            {displayTeamName(occupant, locale)}{' '}
-            <span className="tabular-nums text-sky-500">{formatPercent(occupant.prob)}</span>
+  return (
+    <div className="space-y-3">
+      {/* mobile: round tabs + the active round's cards */}
+      <div className="md:hidden">
+        <div className="mb-3 flex flex-wrap gap-1.5" role="tablist">
+          {BRACKET_COLUMNS.map((s) => {
+            const isActive = s === active;
+            return (
+              <button
+                key={s}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                onClick={() => setActive(s)}
+                className={`rounded-full px-3 py-1 text-sm transition-colors ${
+                  isActive
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                {t(stageLabelKey(s))}
+              </button>
+            );
+          })}
+        </div>
+        <div className="space-y-2">
+          {bracketColumn(active).map((m) => (
+            <div key={m.match_no}>{cell(m)}</div>
+          ))}
+          {active === 'final' && thirdPlace.length > 0 && (
+            <div className="mt-3">
+              <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                {t('bracket.thirdPlaceTitle')}
+              </div>
+              {cell(thirdPlace[0])}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* desktop: connected tree */}
+      <div className="hidden md:block">
+        <div className="overflow-x-auto pb-2">
+          <div className="min-w-max">
+            <div className="mb-2 flex">
+              {BRACKET_COLUMNS.map((s) => (
+                <div
+                  key={s}
+                  className="w-[12.5rem] shrink-0 text-xs font-semibold uppercase tracking-wide text-slate-500 last:w-44"
+                >
+                  {t(stageLabelKey(s))}
+                </div>
+              ))}
+            </div>
+            {renderNode(104)}
+          </div>
+        </div>
+        {thirdPlace.length > 0 && (
+          <div className="mt-4 w-44">
+            <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              {t('bracket.thirdPlaceTitle')}
+            </div>
+            {cell(thirdPlace[0])}
           </div>
         )}
       </div>
-    );
-  }
-
-  function Cell({ m }: { m: BracketMatch }) {
-    return (
-      <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-        <div className="mb-1 text-[10px] uppercase tracking-wide text-slate-400">
-          {t('bracket.matchNo', { n: m.match_no })}
-        </div>
-        <div className="space-y-0.5">
-          <Side slot={m.home} occupant={projected?.[`${m.match_no}-home`]} />
-          <div className="text-[10px] text-slate-300">vs</div>
-          <Side slot={m.away} occupant={projected?.[`${m.match_no}-away`]} />
-        </div>
-      </div>
-    );
-  }
-
-  const thirdPlace = bracketMatchesByStage('3rd');
-
-  return (
-    <div className="space-y-4">
-      <div className="overflow-x-auto pb-2">
-        <div className="flex min-w-max gap-4">
-          {BRACKET_COLUMNS.map((stage) => (
-            <div key={stage} className="flex w-44 shrink-0 flex-col gap-3">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                {t(stageLabelKey(stage) as 'stage.r32')}
-              </h3>
-              {bracketMatchesByStage(stage).map((m) => (
-                <Cell key={m.match_no} m={m} />
-              ))}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {thirdPlace.length > 0 && (
-        <div className="w-44">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            {t('bracket.thirdPlaceTitle')}
-          </h3>
-          <div className="mt-2">
-            <Cell m={thirdPlace[0]} />
-          </div>
-        </div>
-      )}
     </div>
   );
 }
