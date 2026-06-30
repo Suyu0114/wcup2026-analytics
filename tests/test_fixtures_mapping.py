@@ -148,6 +148,24 @@ def test_resolve_score_override_conflicting_with_fd_raises():
         _resolve_score(_fx(match_id="testA", status="final", hg=3, ag=0), {"testA": (2, 1)})
 
 
+def test_resolve_score_fd_override_wins_over_conflicting_fd(capsys):
+    # P12: when the match is flagged override_fd, a conflicting fd score is ignored
+    # (curated wins) with a loud warning instead of a raise.
+    ov = {"testA": (4, 0)}
+    assert _resolve_score(
+        _fx(match_id="testA", status="final", hg=5, ag=0), ov, {"testA"}
+    ) == ("final", 4, 0)
+    assert "WARNING" in capsys.readouterr().out
+
+
+def test_resolve_score_fd_override_only_applies_to_flagged_match():
+    # The flag is per-match: an unflagged conflicting match still fails loud.
+    with pytest.raises(ValueError, match="conflicts with football-data"):
+        _resolve_score(
+            _fx(match_id="testB", status="final", hg=5, ag=0), {"testB": (4, 0)}, {"testA"}
+        )
+
+
 def test_resolve_score_downgrades_final_without_score_or_override():
     # fd FINISHED but null score and no curated entry -> not promoted to final.
     assert _resolve_score(_fx(match_id="999", status="final"), {}) == ("live", None, None)

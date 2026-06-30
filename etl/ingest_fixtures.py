@@ -38,7 +38,9 @@ def _has_teams(f: Fixture) -> bool:
 
 
 def _resolve_score(
-    f: Fixture, overrides: dict[str, tuple[int, int]]
+    f: Fixture,
+    overrides: dict[str, tuple[int, int]],
+    fd_override_ids: frozenset[str] | set[str] = frozenset(),
 ) -> tuple[str, int | None, int | None]:
     """Effective (status, home_goals, away_goals), reconciling fd with curated results.
 
@@ -51,14 +53,26 @@ def _resolve_score(
 
     `overrides` is {match_id: (home_goals, away_goals)} merged from the DB
     (manual_results, admin-entered) over the code seed (etl/results.py); DB wins.
+    `fd_override_ids` is the subset whose curated score is flagged authoritative even
+    against a *conflicting* non-null fd score (P12, manual_results.override_fd) — fd is
+    known-wrong (verified 2026-06-21: 537371 fd 5-0, actual 4-0). For those we record the
+    curated score and warn loudly instead of raising. The default empty set keeps the
+    fail-loud-on-conflict guard for every unacknowledged match.
     """
     override = overrides.get(f.match_id)
     fd_has_score = f.home_goals is not None and f.away_goals is not None
     if override is not None:
         if fd_has_score and (f.home_goals, f.away_goals) != override:
-            raise ValueError(
-                f"curated result {override} for match {f.match_id} conflicts with "
-                f"football-data ({f.home_goals},{f.away_goals}) — reconcile manual_results / etl/results.py"
+            if f.match_id not in fd_override_ids:
+                raise ValueError(
+                    f"curated result {override} for match {f.match_id} conflicts with "
+                    f"football-data ({f.home_goals},{f.away_goals}) — reconcile manual_results / etl/results.py "
+                    f"(if fd is the wrong one, set manual_results.override_fd=true / tick the admin override)"
+                )
+            print(
+                f"  WARNING: match {f.match_id}: football-data reports "
+                f"({f.home_goals},{f.away_goals}) but curated override {override} is flagged "
+                f"authoritative (override_fd) — recording curated, ignoring fd."
             )
         return "final", override[0], override[1]
     if f.status == "final" and not fd_has_score:
@@ -66,13 +80,19 @@ def _resolve_score(
     return f.status, f.home_goals, f.away_goals
 
 
-def _match_row(f: Fixture, home_id: str, away_id: str, overrides: dict[str, tuple[int, int]]) -> dict:
+def _match_row(
+    f: Fixture,
+    home_id: str,
+    away_id: str,
+    overrides: dict[str, tuple[int, int]],
+    fd_override_ids: frozenset[str] | set[str] = frozenset(),
+) -> dict:
     # P6 A1: host venue lookup (raises for a host match with no curated venue).
     # kickoff_utc lets host_flags resolve knockout host venues via the FIFA slot schedule.
     is_host_home, is_host_away = venues.host_flags(
         f.match_id, home_id, away_id, f.venue, f.kickoff_utc
     )
-    status, home_goals, away_goals = _resolve_score(f, overrides)
+    status, home_goals, away_goals = _resolve_score(f, overrides, fd_override_ids)
     return {
         "match_id": f.match_id,
         "stage": f.stage,
@@ -150,16 +170,27 @@ def validate(fixtures: list[Fixture], rows: list[dict]) -> None:
     assert_settled_have_goals(rows)
 
 
-def _load_overrides() -> dict[str, tuple[int, int]]:
-    """Curated result overrides: DB (manual_results, admin-entered) over the code seed
-    (etl/results.py). Graceful: if the DB/table is unavailable, use the code seed only."""
+def _load_overrides() -> tuple[dict[str, tuple[int, int]], set[str]]:
+    """Curated result overrides + the fd-override id set.
+
+    Overrides: DB (manual_results, admin-entered) over the code seed (etl/results.py).
+    fd_override_ids: match_ids flagged authoritative-over-conflicting-fd (P12). Graceful:
+    if the DB/table is unavailable, use the code seed only with no fd overrides."""
     overrides: dict[str, tuple[int, int]] = dict(results.RESULTS)
+    fd_override_ids: set[str] = set()
     try:
         from etl import db
         overrides.update(db.fetch_manual_results())
     except Exception as e:
         print(f"  (manual_results unavailable — using etl/results.py seed only: {e})")
-    return overrides
+        return overrides, fd_override_ids
+    # Separate try: a missing override_fd column (p12.sql not applied yet) must NOT
+    # drop the manual_results loaded above — just honour no fd overrides.
+    try:
+        fd_override_ids = db.fetch_fd_override_ids()
+    except Exception as e:
+        print(f"  (override_fd unavailable — no fd overrides honoured; apply p12.sql: {e})")
+    return overrides, fd_override_ids
 
 
 def run(dry_run: bool = False, today: date | None = None) -> list[dict]:
@@ -167,7 +198,7 @@ def run(dry_run: bool = False, today: date | None = None) -> list[dict]:
     fixtures = src.get_fixtures()
     ratings = CsvRatingSource(config.ELO_CSV, today=today).get_ratings()
     alias_map = build_alias_map(src.get_teams(), ratings)
-    overrides = _load_overrides()
+    overrides, fd_override_ids = _load_overrides()
 
     rows: list[dict] = []
     skipped = 0
@@ -177,7 +208,7 @@ def run(dry_run: bool = False, today: date | None = None) -> list[dict]:
             continue
         home_id = resolve(alias_map, f.home_tla, f.home_name)   # raises if unknown
         away_id = resolve(alias_map, f.away_tla, f.away_name)
-        rows.append(_match_row(f, home_id, away_id, overrides))
+        rows.append(_match_row(f, home_id, away_id, overrides, fd_override_ids))
 
     validate(fixtures, rows)
     n_host = sum(1 for r in rows if r["is_host_home"] or r["is_host_away"])

@@ -23,7 +23,7 @@ create table team_aliases (
 -- 3.3 賽程
 create table matches (
   match_id     text primary key,             -- 來自 fixtures source 的穩定 id
-  stage        text not null,                -- 'group' | 'r32' | 'r16' | 'qf' | 'sf' | 'final'
+  stage        text not null,                -- 'group' | 'r32' | 'r16' | 'qf' | 'sf' | '3rd' | 'final'（'3rd'＝季軍戰，對齊 sources/fixture_source.STAGE_MAP）
   group_label  char(1),                      -- group 賽填 'A'..'L'，淘汰賽 null
   home_team    text not null references teams(team_id),
   away_team    text not null references teams(team_id),
@@ -142,6 +142,8 @@ create table group_sim (
 -- AUTHORITATIVE hand-verified result source (fd matchday data is unreliable on the
 -- free tier). The admin page upserts here; etl/ingest_fixtures.py reads it DB-first
 -- (code dict etl/results.py is a fallback seed). One curated result per match.
+-- P12: override_fd flag — curated score wins over a *conflicting non-null* fd score
+-- when fd is plain wrong (default false keeps fail-loud-on-conflict everywhere else).
 -- =====================================================================
 create table manual_results (
   match_id    text primary key references matches(match_id),
@@ -149,7 +151,8 @@ create table manual_results (
   away_goals  int not null,
   entered_by  text,                              -- admin identifier (provenance/audit)
   entered_at  timestamptz not null default now(),
-  note        text
+  note        text,
+  override_fd boolean not null default false      -- P12: curated wins over conflicting fd score
 );
 
 -- =====================================================================

@@ -12,7 +12,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  let body: { matchId?: unknown; homeGoals?: unknown; awayGoals?: unknown };
+  let body: {
+    matchId?: unknown;
+    homeGoals?: unknown;
+    awayGoals?: unknown;
+    overrideFd?: unknown;
+  };
   try {
     body = await request.json();
   } catch {
@@ -22,6 +27,7 @@ export async function POST(request: Request) {
   const matchId = typeof body.matchId === 'string' ? body.matchId : '';
   const homeGoals = body.homeGoals;
   const awayGoals = body.awayGoals;
+  const overrideFd = body.overrideFd === true;
   const validGoal = (g: unknown): g is number =>
     typeof g === 'number' && Number.isInteger(g) && g >= 0 && g <= MAX_GOALS;
 
@@ -33,7 +39,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    await writeManualResult(matchId, homeGoals, awayGoals);
+    await writeManualResult(matchId, homeGoals, awayGoals, overrideFd);
   } catch {
     return NextResponse.json({ error: 'Failed to save score' }, { status: 500 });
   }
