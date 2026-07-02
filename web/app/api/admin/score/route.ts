@@ -40,8 +40,16 @@ export async function POST(request: Request) {
 
   try {
     await writeManualResult(matchId, homeGoals, awayGoals, overrideFd);
-  } catch {
-    return NextResponse.json({ error: 'Failed to save score' }, { status: 500 });
+  } catch (err) {
+    // Don't swallow the DB reason — the route is admin-only (isAuthed above), so
+    // surfacing the Postgrest message to the caller + server log is safe and turns
+    // an opaque 500 into an actionable one (RLS denial / FK violation / bad key).
+    console.error('[admin/score] writeManualResult failed:', err);
+    const e = err as { message?: string; code?: string; hint?: string };
+    return NextResponse.json(
+      { error: 'Failed to save score', detail: e?.message ?? String(err), code: e?.code },
+      { status: 500 },
+    );
   }
 
   const recompute = await triggerRecompute();
