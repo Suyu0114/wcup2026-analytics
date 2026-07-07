@@ -28,6 +28,11 @@ jobs:
       - run: pip install -r requirements.txt
       - name: Ingest fixtures (settles matches from manual_results)
         run: python -m etl.ingest_fixtures
+      # Predict unsettled matches so post-draw knockout rows (ingested above once
+      # they have teams) get per-match predictions for their cards. Idempotent
+      # upsert on (match_id, model_version); free, so safe on every recompute.
+      - name: Predict unsettled matches (incl. new knockout rows)
+        run: python -m etl.predict --only-unsettled
       - name: Recompute group standings (actual table)
         run: python -m etl.standings
       - name: Recompute qualification scenarios (W/D/L → status)

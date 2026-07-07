@@ -55,11 +55,16 @@ export default function ScoreEntryForm({ matches }: { matches: MatchOption[] }) 
       });
       const data = (await res.json().catch(() => ({}))) as {
         error?: string;
+        detail?: string;
         recompute?: boolean;
       };
       if (!res.ok) {
         setStatus('error');
-        setMessage(res.status === 401 ? '登入已過期，請重新登入。' : data.error ?? '儲存失敗。');
+        setMessage(
+          res.status === 401
+            ? '登入已過期，請重新登入。'
+            : `${data.error ?? '儲存失敗。'}${data.detail ? `：${data.detail}` : ''}`,
+        );
         return;
       }
       setStatus('ok');
