@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 
 from engine.dixon_coles import MODEL_VERSION
 from engine.group_sim import GroupMatch, SimConfig, simulate_tournament
+from engine.knockout import KnockoutMatchState, resolve_real_winners
 from etl import db
 
 
@@ -50,11 +51,42 @@ def run(
     ]
     team_elos = db.fetch_team_elos()
 
-    teams, slots = simulate_tournament(matches, team_elos, SimConfig(n=n, seed=seed))
+    # P17: real knockout rows (post-draw) lock the actual bracket — settled winners
+    # advance deterministically, known pairings replace the Annex C re-derivation.
+    ko_states = {
+        int(r["match_no"]): KnockoutMatchState(
+            match_no=int(r["match_no"]),
+            home_team=r["home_team"],
+            away_team=r["away_team"],
+            is_settled=r["status"] == "final",
+            home_goals=r["home_goals"],
+            away_goals=r["away_goals"],
+            winner=r["winner"],
+        )
+        for r in db.fetch_knockout_matches()
+    }
+
+    teams, slots = simulate_tournament(
+        matches, team_elos, SimConfig(n=n, seed=seed), ko_states=ko_states or None
+    )
     assert len(teams) == 48, f"Expected 48 team results, got {len(teams)}"
 
     print(f"Tournament sim: N={n}, seed={seed}, model={mv}")
     print(f"  Settled group matches: {sum(1 for m in matches if m.is_settled)}/72 (locked)")
+    n_r32 = sum(1 for no in ko_states if 73 <= no <= 88)
+    real_bracket = n_r32 == 16
+    n_settled_ko = sum(1 for st in ko_states.values() if st.is_settled)
+    n_locked = len(resolve_real_winners(ko_states)) if real_bracket else 0
+    print(
+        f"  Real bracket: {'yes' if real_bracket else f'no ({n_r32}/16 R32 rows)'} — "
+        f"{len(ko_states)} real knockout matches, {n_settled_ko} settled, "
+        f"{n_locked} locked winners"
+        + (
+            f" ({n_settled_ko - n_locked} settled-but-unresolved, sampled via We)"
+            if real_bracket and n_settled_ko > n_locked
+            else ""
+        )
+    )
     print("  Top 10 by P(champion):")
     for r in sorted(teams, key=lambda x: -x.p_champion)[:10]:
         print(

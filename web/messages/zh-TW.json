@@ -131,7 +131,12 @@
     "colFinal": "決賽",
     "colSf": "四強",
     "colQf": "八強",
-    "colR16": "16強"
+    "colR16": "16強",
+    "pk": "PK",
+    "aet": "加時",
+    "live": "進行中",
+    "realLegend": "實際對戰／賽果",
+    "projectedLegend": "模型預測佔位（實驗性）"
   },
   "results": {
     "title": "賽程與成績",

@@ -131,7 +131,12 @@
     "colFinal": "Final",
     "colSf": "SF",
     "colQf": "QF",
-    "colR16": "R16"
+    "colR16": "R16",
+    "pk": "PK",
+    "aet": "aet",
+    "live": "LIVE",
+    "realLegend": "Real matchup / result",
+    "projectedLegend": "Projected occupant (model, experimental)"
   },
   "results": {
     "title": "Fixtures & Results",

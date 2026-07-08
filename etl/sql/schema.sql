@@ -33,7 +33,10 @@ create table matches (
   is_host_away boolean not null default false,-- P6 A1：away_team 是地主國且在本國比賽（fd 第三輪把地主列客隊）
   status       text not null default 'scheduled', -- 'scheduled' | 'live' | 'final'
   home_goals   int,
-  away_goals   int
+  away_goals   int,
+  match_no     int unique check (match_no between 73 and 104), -- P17：FIFA 場次編號（engine/bracket.py slot key）；group 為 null；由 kickoff 排程解析（etl/venues.py）
+  winner       text check (winner in ('home','away')),          -- P17：fd score.winner；PK 決勝 fullTime 平分，勝者只能靠這欄或下一輪反推
+  result_duration text check (result_duration in ('regular','et','pk')) -- P17：fd score.duration；'et'/'pk' ＝ 90 分鐘平手（calibrate 記 draw）
 );
 
 -- 3.4 模型輸出（每 (match, model_version) 一列）

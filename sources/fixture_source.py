@@ -37,6 +37,15 @@ STATUS_MAP = {
     "FINISHED": "final",
 }
 
+# fd score.winner -> internal side (P17). DRAW/null -> None. ⚠️ fd can serve
+# winner=null even on a FINISHED shootout (verified 2026-07-07: 537382 SUI v COL) —
+# ingest falls back to the decisive fullTime. Unknown values raise.
+WINNER_MAP = {"HOME_TEAM": "home", "AWAY_TEAM": "away", "DRAW": None}
+
+# fd score.duration -> internal (P17). 'et'/'pk' == regulation ended level (the 90'
+# 1X2 result is a draw by definition — calibrate relies on this).
+DURATION_MAP = {"REGULAR": "regular", "EXTRA_TIME": "et", "PENALTY_SHOOTOUT": "pk"}
+
 
 @dataclass(frozen=True)
 class FdTeam:
@@ -56,8 +65,13 @@ class Fixture:
     kickoff_utc: str                # ISO-8601 UTC string
     status: str                     # internal: scheduled|live|final
     venue: str | None = None        # fd venue string (None pre-tournament — verified 0/104)
+    # ⚠️ fd fullTime for knockout is CUMULATIVE reg + ET + penalty goals (verified
+    # 2026-07-07: GER v PAR reg 1-1, pens 3-4 → fullTime 4-5), so a settled knockout
+    # score is always decisive.
     home_goals: int | None = None   # fd score.fullTime.home (None until played)
     away_goals: int | None = None   # fd score.fullTime.away (None until played)
+    winner: str | None = None       # fd score.winner -> 'home'/'away' (P17; None = draw/unplayed)
+    duration: str | None = None     # fd score.duration -> 'regular'/'et'/'pk' (P17)
 
 
 def _group_letter(group: str | None) -> str | None:
@@ -101,7 +115,14 @@ class FootballDataFixtureSource:
             away = m.get("awayTeam") or {}
             # Full-time score: null until the match is played (verify-don't-assume —
             # simulate/calibrate require non-null goals once status='final').
-            ft = (m.get("score") or {}).get("fullTime") or {}
+            score = m.get("score") or {}
+            ft = score.get("fullTime") or {}
+            raw_winner = score.get("winner")
+            if raw_winner is not None and raw_winner not in WINNER_MAP:
+                raise ValueError(f"Unknown score.winner {raw_winner!r} for match {m['id']}")
+            raw_duration = score.get("duration")
+            if raw_duration is not None and raw_duration not in DURATION_MAP:
+                raise ValueError(f"Unknown score.duration {raw_duration!r} for match {m['id']}")
             out.append(
                 Fixture(
                     match_id=str(m["id"]),
@@ -116,6 +137,8 @@ class FootballDataFixtureSource:
                     venue=m.get("venue"),
                     home_goals=ft.get("home"),
                     away_goals=ft.get("away"),
+                    winner=WINNER_MAP.get(raw_winner),
+                    duration=DURATION_MAP.get(raw_duration),
                 )
             )
         return out

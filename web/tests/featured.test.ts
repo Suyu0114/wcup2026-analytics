@@ -6,14 +6,19 @@ import type { MatchView } from '../lib/types';
 // status==='final' OR an admin score already entered in manual_results (the
 // cards advance before the recompute pipeline settles the match).
 
-const mk = (id: string, kickoff: string, status = 'scheduled'): MatchView => ({
+const mk = (id: string, kickoff: string, status = 'scheduled', stage = 'group'): MatchView => ({
   match_id: id,
-  stage: 'group',
-  group_label: 'B',
+  stage,
+  group_label: stage === 'group' ? 'B' : null,
+  match_no: stage === 'group' ? null : 97,
   kickoff_utc: kickoff,
   status,
   home: { team_id: 'CA', name_en: 'Canada', name_zh: null, elo: 1800 },
   away: { team_id: 'BA', name_en: 'Bosnia and Herzegovina', name_zh: null, elo: 1700 },
+  home_goals: null,
+  away_goals: null,
+  winner: null,
+  result_duration: null,
   model: null,
   market: null,
   divergence: null,
@@ -65,6 +70,14 @@ describe('selectFeatured', () => {
       mk('3', '2026-06-14T00:00:00Z'),
     ];
     expect(selectFeatured(matches, {}, 2)).toHaveLength(2);
+  });
+
+  it('features knockout matches once the group stage is all final (P17)', () => {
+    const matches = [
+      mk('g1', '2026-06-12T00:00:00Z', 'final'),           // settled group match
+      mk('qf1', '2026-07-09T20:00:00Z', 'scheduled', 'qf'), // upcoming quarter-final
+    ];
+    expect(selectFeatured(matches, {}).map((m) => m.match_id)).toEqual(['qf1']);
   });
 });
 

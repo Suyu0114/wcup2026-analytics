@@ -52,10 +52,19 @@ export interface MatchView {
   match_id: string;
   stage: string;
   group_label: string | null;
+  // P17: FIFA match number (73–104) — the bracket-tree cell key. null for group stage
+  // (and, defensively, pre-p17.sql rows).
+  match_no: number | null;
   kickoff_utc: string;
   status: string;
   home: TeamRef;
   away: TeamRef;
+  // Real score (P17). ⚠️ fd fullTime for knockout is cumulative reg + ET + penalty
+  // goals, so a settled knockout score is always decisive.
+  home_goals: number | null;
+  away_goals: number | null;
+  winner: 'home' | 'away' | null; // fd score.winner (falls back to goals when absent)
+  result_duration: 'regular' | 'et' | 'pk' | null; // how it ended — drives PK/aet markers
   model: MatchModel | null; // experimental; never a standalone answer (D5)
   market: MatchMarket | null; // null when no odds posted yet (graceful, §6.1)
   // Cross-comparison: model vs market most-likely outcome. null when either side missing.
@@ -142,8 +151,10 @@ export interface FixtureView {
   status: string; // 'scheduled' | 'live' | 'final'
   home: TeamRef;
   away: TeamRef;
-  home_goals: number | null; // null until the match is played/settled
+  home_goals: number | null; // null until the match is played/settled (incl. ET goals)
   away_goals: number | null;
+  winner: 'home' | 'away' | null; // P17: fd score.winner (PK matches store level goals)
+  result_duration: 'regular' | 'et' | 'pk' | null; // P17: how the match ended
 }
 
 export interface FixturesResponse {

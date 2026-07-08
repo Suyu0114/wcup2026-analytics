@@ -31,6 +31,23 @@ def result_1x2(home_goals: int, away_goals: int) -> str:
     return "draw"
 
 
+def settled_outcome(m: dict) -> str | None:
+    """90-minute 1X2 outcome for scoring one settled match (P17 honesty fix).
+
+    fd's fullTime INCLUDES extra-time goals, while both the model 1X2 and the Pinnacle
+    h2h market are 90-minute three-way. So a knockout match that went to ET/PK was by
+    definition level after 90' → scored as 'draw' (regardless of the ET/PK outcome).
+    A knockout match settled without duration provenance (manual-only entry) cannot be
+    scored honestly → None (excluded, counted by the caller). Group matches unchanged."""
+    if m.get("stage", "group") != "group":
+        duration = m.get("result_duration")
+        if duration in ("et", "pk"):
+            return "draw"
+        if duration != "regular":
+            return None
+    return result_1x2(m["home_goals"], m["away_goals"])
+
+
 def brier(probs: dict[str, float], outcome: str) -> float:
     return sum((probs[o] - (1.0 if o == outcome else 0.0)) ** 2 for o in OUTCOMES)
 
@@ -49,19 +66,30 @@ def _agg(scores: list[tuple[float, float]]) -> dict | None:
 def _score(prob_map: dict, settled: list[dict]) -> dict | None:
     scores = []
     for m in settled:
-        mid, res = m["match_id"], result_1x2(m["home_goals"], m["away_goals"])
+        mid, res = m["match_id"], m["outcome"]
         if mid in prob_map:
             scores.append((brier(prob_map[mid], res), log_loss(prob_map[mid], res)))
     return _agg(scores)
 
 
 def run(dry_run: bool = False) -> dict:
-    settled = [
-        m for m in db.fetch_settled_matches()
-        if m.get("home_goals") is not None and m.get("away_goals") is not None
-    ]
+    settled: list[dict] = []
+    excluded = 0
+    for m in db.fetch_settled_matches():
+        if m.get("home_goals") is None or m.get("away_goals") is None:
+            continue
+        outcome = settled_outcome(m)
+        if outcome is None:
+            excluded += 1
+            continue
+        settled.append({**m, "outcome": outcome})
     print("Calibration (T10 — NOT a model gate; 1X2 only; model = EXPERIMENTAL):")
-    print(f"  settled: {len(settled)}")
+    print(f"  settled: {len(settled)} (90-minute outcomes; ET/PK knockout = draw)")
+    if excluded:
+        print(
+            f"  WARNING: {excluded} settled knockout match(es) without result_duration "
+            f"provenance excluded — cannot know the 90-minute result (P17)"
+        )
 
     market = {
         mid: novig(p)

@@ -10,7 +10,7 @@ import {
   type BracketMatch,
   type KnockoutStage,
 } from '@/lib/bracket';
-import type { BracketSlotTeam } from '@/lib/types';
+import type { BracketSlotTeam, MatchView } from '@/lib/types';
 import type { Locale } from '@/lib/routing';
 import BracketCell from './BracketCell';
 
@@ -26,16 +26,22 @@ function stageLabelKey(stage: KnockoutStage): 'stage.r32' {
 
 export default function BracketView({
   projected,
+  real,
   locale = 'en',
 }: {
   projected?: Record<string, BracketSlotTeam>;
+  real?: Record<number, MatchView>; // P17: real fixtures keyed by FIFA match_no
   locale?: Locale;
 } = {}) {
   const t = useTranslations();
   const [active, setActive] = useState<KnockoutStage>('r32');
 
-  const cell = (m: BracketMatch) => <BracketCell match={m} projected={projected} locale={locale} />;
+  const cell = (m: BracketMatch) => (
+    <BracketCell match={m} projected={projected} real={real} locale={locale} />
+  );
   const thirdPlace = bracketColumn('3rd');
+  const hasReal = real !== undefined && Object.keys(real).length > 0;
+  const hasProjected = projected !== undefined && Object.keys(projected).length > 0;
 
   function renderNode(matchNo: number): ReactNode {
     const m = bracketMatch(matchNo)!;
@@ -69,6 +75,24 @@ export default function BracketView({
 
   return (
     <div className="space-y-3">
+      {/* P17 legend: facts vs model kept visibly separate (trap #13b) */}
+      {(hasReal || hasProjected) && (
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+          {hasReal && (
+            <span>
+              <span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm border border-slate-400 bg-white align-middle" />
+              {t('bracket.realLegend')}
+            </span>
+          )}
+          {hasProjected && (
+            <span>
+              <span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-sky-200 align-middle" />
+              {t('bracket.projectedLegend')}
+            </span>
+          )}
+        </div>
+      )}
+
       {/* mobile: round tabs + the active round's cards */}
       <div className="md:hidden">
         <div className="mb-3 flex flex-wrap gap-1.5" role="tablist">

@@ -22,6 +22,10 @@ export default function MatchCard({
   const home = displayTeamName(match.home, locale);
   const away = displayTeamName(match.away, locale);
   const kickoff = formatKickoff(match.kickoff_utc, locale, tz);
+  // P17: knockout rows have no group_label — badge falls back to the stage name.
+  const stageKey = match.stage === '3rd' ? 'stage.third' : `stage.${match.stage}`;
+  const hasScore = match.home_goals !== null && match.away_goals !== null;
+  const showScore = hasScore && (match.status === 'final' || match.status === 'live');
 
   return (
     <article className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
@@ -32,17 +36,33 @@ export default function MatchCard({
               <Flag teamId={match.home.team_id} />
               {home}
             </span>
-            <span className="text-slate-400">vs</span>
+            {showScore ? (
+              <span className="tabular-nums">
+                {match.home_goals}–{match.away_goals}
+                {match.status === 'final' && match.result_duration === 'pk' && (
+                  <span className="ml-1 text-xs font-normal text-slate-500">({t('bracket.pk')})</span>
+                )}
+                {match.status === 'final' && match.result_duration === 'et' && (
+                  <span className="ml-1 text-xs font-normal text-slate-500">({t('bracket.aet')})</span>
+                )}
+              </span>
+            ) : (
+              <span className="text-slate-400">vs</span>
+            )}
             <span className="inline-flex items-center gap-1.5">
               <Flag teamId={match.away.team_id} />
               {away}
             </span>
           </h3>
-          {match.group_label && (
+          {match.group_label ? (
             <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
               {t('groups.groupLabel')} {match.group_label}
             </span>
-          )}
+          ) : match.stage !== 'group' ? (
+            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
+              {t(stageKey as 'stage.r32')}
+            </span>
+          ) : null}
           {match.model?.upset.tier && <UpsetBadge tier={match.model.upset.tier} />}
           {match.divergence?.flag && <DivergenceBadge />}
         </div>

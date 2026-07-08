@@ -1,12 +1,17 @@
 name: Recompute
 
 # Matchday recompute: re-runs the pipeline after a manual result is entered.
-# Triggered manually (Actions tab) or by the admin page via the GitHub API
-# (repository_dispatch event_type = 'recompute-request').
+# Triggered manually (Actions tab), by the admin page via the GitHub API
+# (repository_dispatch event_type = 'recompute-request'), or on the knockout-stage
+# cron (P17): fd fills the next round's teams after each match settles; the pipeline
+# is idempotent and fail-loud, so a run hitting an fd transient just fails and the
+# next tick self-heals. REMOVE the schedule after the final (2026-07-19).
 on:
   workflow_dispatch:
   repository_dispatch:
     types: [recompute-request]
+  schedule:
+    - cron: '17 */2 * * *'
 
 # Queue overlapping requests rather than clobbering an in-flight simulation.
 concurrency:

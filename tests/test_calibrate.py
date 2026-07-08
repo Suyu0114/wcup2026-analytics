@@ -3,13 +3,37 @@ import math
 
 import pytest
 
-from etl.calibrate import brier, log_loss, result_1x2
+from etl.calibrate import brier, log_loss, result_1x2, settled_outcome
 
 
 def test_result_1x2():
     assert result_1x2(2, 1) == "home"
     assert result_1x2(0, 3) == "away"
     assert result_1x2(1, 1) == "draw"
+
+
+# --- P17: 90-minute outcomes for knockout matches (fd fullTime includes ET) ---
+
+def test_settled_outcome_group_unchanged():
+    assert settled_outcome({"stage": "group", "home_goals": 1, "away_goals": 1}) == "draw"
+    assert settled_outcome({"stage": "group", "home_goals": 2, "away_goals": 0}) == "home"
+
+
+def test_settled_outcome_ko_regular_uses_goals():
+    m = {"stage": "r16", "result_duration": "regular", "home_goals": 0, "away_goals": 2}
+    assert settled_outcome(m) == "away"
+
+
+def test_settled_outcome_ko_et_and_pk_score_as_draw():
+    et = {"stage": "r32", "result_duration": "et", "home_goals": 2, "away_goals": 1}
+    pk = {"stage": "qf", "result_duration": "pk", "home_goals": 1, "away_goals": 1}
+    assert settled_outcome(et) == "draw"
+    assert settled_outcome(pk) == "draw"
+
+
+def test_settled_outcome_ko_without_duration_is_excluded():
+    m = {"stage": "r16", "result_duration": None, "home_goals": 2, "away_goals": 1}
+    assert settled_outcome(m) is None
 
 
 def test_brier_perfect_and_worst():

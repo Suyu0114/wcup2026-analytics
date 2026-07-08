@@ -2,7 +2,7 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { getKnockout, getKnockoutSim, getBracketSlots } from '@/lib/data';
 import { anyZhNameMissing } from '@/lib/teamName';
 import type { Locale } from '@/lib/routing';
-import type { BracketSlotTeam } from '@/lib/types';
+import type { BracketSlotTeam, MatchView } from '@/lib/types';
 import BracketView from '@/components/BracketView';
 import ChampionOdds from '@/components/ChampionOdds';
 import KnockoutMatchCard from '@/components/KnockoutMatchCard';
@@ -33,6 +33,12 @@ export default async function BracketPage({
     bracketSlots.slots.map((s) => [`${s.match_no}-${s.side}`, s]),
   );
 
+  // P17: real fixtures keyed by FIFA match_no — these take precedence over the
+  // projected (model) occupants in the tree cells.
+  const real: Record<number, MatchView> = Object.fromEntries(
+    matches.filter((m) => m.match_no !== null).map((m) => [m.match_no as number, m]),
+  );
+
   // graceful zh-name fallback banner (spec §3.2 / §6.6)
   const teams = [
     ...matches.flatMap((m) => [m.home, m.away]),
@@ -58,10 +64,11 @@ export default async function BracketPage({
         <ChampionOdds teams={knockoutSim.teams} locale={locale as Locale} />
       )}
 
-      {/* Canonical bracket structure; R32 cells show the projected occupant when sim data exists. */}
+      {/* Canonical bracket structure; cells prefer the REAL fixture (P17), falling back
+          to the projected (model) occupant when the matchup isn't set yet. */}
       <section className="space-y-2">
         <h2 className="text-lg font-semibold text-slate-900">{t('bracket.structureTitle')}</h2>
-        <BracketView projected={projected} locale={locale as Locale} />
+        <BracketView projected={projected} real={real} locale={locale as Locale} />
       </section>
 
       {matches.length > 0 ? (

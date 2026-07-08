@@ -27,12 +27,21 @@ export default function FixtureRow({
   tz: string;
 }) {
   const t = useTranslations();
-  const { home, away, home_goals, away_goals, status, group_label, stage, kickoff_utc } = fixture;
+  const { home, away, home_goals, away_goals, status, group_label, stage, kickoff_utc, result_duration } = fixture;
   const hasScore = home_goals !== null && away_goals !== null;
 
   const sectionLabel = group_label
     ? `${t('groups.groupLabel')} ${group_label}`
-    : t(`stage.${stage}` as 'stage.group');
+    : // '3rd' must map to 'stage.third' — next-intl treats '.' as a path separator (trap B2)
+      t((stage === '3rd' ? 'stage.third' : `stage.${stage}`) as 'stage.group');
+  // P17: how a settled knockout match ended. fd's fullTime is cumulative (reg + ET +
+  // pens), so a shootout shows e.g. 4-5 — the PK marker gives that score its context.
+  const endedNote =
+    status === 'final' && result_duration === 'pk'
+      ? t('bracket.pk')
+      : status === 'final' && result_duration === 'et'
+        ? t('bracket.aet')
+        : null;
   const statusLabel =
     status === 'final' ? t('results.statusFinal')
     : status === 'live' ? t('results.statusLive')
@@ -51,9 +60,12 @@ export default function FixtureRow({
         </div>
         <div className="min-w-[3.25rem] text-center">
           {hasScore ? (
-            <span className="text-base font-semibold tabular-nums text-slate-900">
-              {home_goals} <span className="text-slate-400">-</span> {away_goals}
-            </span>
+            <>
+              <span className="text-base font-semibold tabular-nums text-slate-900">
+                {home_goals} <span className="text-slate-400">-</span> {away_goals}
+              </span>
+              {endedNote && <span className="block text-[10px] text-slate-500">{endedNote}</span>}
+            </>
           ) : (
             <span className="text-sm tabular-nums text-slate-500">{kickoffTime(kickoff_utc, locale, tz)}</span>
           )}

@@ -5,11 +5,23 @@ import { useMemo, useState } from 'react';
 export interface MatchOption {
   matchId: string;
   group: string | null;
+  stage: string; // 'group' | 'r32' | 'r16' | 'qf' | 'sf' | '3rd' | 'final'
   homeName: string;
   awayName: string;
   kickoff: string;
+  settled: boolean; // matches.status === 'final' (fd/curated — may lack a manual entry)
   existing: { home: number; away: number; overrideFd: boolean } | null;
 }
+
+// Admin is hardcoded zh (no i18n keys needed here).
+const STAGE_ZH: Record<string, string> = {
+  r32: '32強',
+  r16: '16強',
+  qf: '八強',
+  sf: '四強',
+  '3rd': '季軍戰',
+  final: '決賽',
+};
 
 type Status = 'idle' | 'saving' | 'ok' | 'error';
 
@@ -92,9 +104,13 @@ export default function ScoreEntryForm({ matches }: { matches: MatchOption[] }) 
           <option value="">— 選擇比賽 —</option>
           {matches.map((m) => (
             <option key={m.matchId} value={m.matchId}>
-              {m.group ? `${m.group}組 · ` : ''}
+              {m.group ? `${m.group}組 · ` : STAGE_ZH[m.stage] ? `${STAGE_ZH[m.stage]} · ` : ''}
               {m.homeName} vs {m.awayName}
-              {m.existing ? `（已輸入 ${m.existing.home}-${m.existing.away}）` : ''}
+              {m.existing
+                ? `（已輸入 ${m.existing.home}-${m.existing.away}）`
+                : m.settled
+                  ? '（已終場）'
+                  : ''}
             </option>
           ))}
         </select>
@@ -129,6 +145,20 @@ export default function ScoreEntryForm({ matches }: { matches: MatchOption[] }) 
             />
           </label>
         </div>
+      )}
+
+      {selected && selected.stage !== 'group' && (
+        <p className="rounded bg-sky-50 px-3 py-2 text-xs text-sky-900">
+          淘汰賽請輸入與 football-data 一致的<strong>最終總比分</strong>：含加時進球；PK
+          決勝時<strong>連 PK 進球一起加總</strong>（例：1-1 加時後 PK 3-4 → 輸入 4-5）。
+          比分不一致會使重算中止。
+          {home !== '' && away !== '' && Number(home) === Number(away) && (
+            <span className="mt-1 block">
+              平手比分無法判定晉級隊：若是 PK 決勝請改輸入含 PK 的總比分；否則晉級隊將由
+              football-data 或下一輪對戰自動判定，判定前模擬暫以晉級機率抽樣（過渡狀態，會自癒）。
+            </span>
+          )}
+        </p>
       )}
 
       {selected && (
