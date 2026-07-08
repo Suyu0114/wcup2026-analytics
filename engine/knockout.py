@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import os
+from dataclasses import dataclass
 from functools import lru_cache
 
 from engine.bracket import KO_MATCHES, THIRD_PLACE_SLOTS
@@ -107,6 +108,130 @@ def _resolve_fixed(slot: dict, winners: dict[str, str], runners_up: dict[str, st
 
 
 # ---------------------------------------------------------------------------
+# Real-bracket state (P17): settled-knockout locking inputs
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class KnockoutMatchState:
+    """One real knockout match as stored in `matches` (P17 locking input).
+
+    winner is fd's score.winner mapped to 'home'/'away' — the only per-row source of
+    who advanced when a shootout leaves fullTime level. None = not (yet) known."""
+    match_no: int
+    home_team: str
+    away_team: str
+    is_settled: bool
+    home_goals: int | None
+    away_goals: int | None
+    winner: str | None            # 'home' | 'away' | None
+
+
+def resolve_real_winners(ko_states: dict[int, KnockoutMatchState]) -> dict[int, str]:
+    """Deterministic winner team_id per match_no, from every honest source (P17).
+
+    1. fd score.winner (covers penalty shootouts).
+    2. Settled decisive goals (fullTime incl. ET).
+    3. Downstream inference: a later real match's participants pin its feeders'
+       outcomes — a `match_winner` participant IS the feeder's winner; a `match_loser`
+       participant (third-place play-off) implies the feeder's winner is the OTHER team.
+
+    A settled shootout that none of these resolve yet is deliberately absent
+    (sampled via We until fd supplies the winner or fills the next round — documented
+    transient). Contradictions raise (verify-don't-assume; fd transients self-heal on
+    the next recompute)."""
+    resolved: dict[int, str] = {}
+
+    def _record(no: int, team: str, source: str) -> None:
+        prev = resolved.get(no)
+        if prev is not None and prev != team:
+            raise ValueError(
+                f"match {no}: winner {team!r} from {source} contradicts {prev!r} "
+                f"(fail-loud, P17)"
+            )
+        resolved[no] = team
+
+    # Pass 1: per-match evidence.
+    for no, st in ko_states.items():
+        if not st.is_settled:
+            continue
+        goals_winner = None
+        if st.home_goals is not None and st.away_goals is not None and st.home_goals != st.away_goals:
+            goals_winner = st.home_team if st.home_goals > st.away_goals else st.away_team
+        col_winner = None
+        if st.winner is not None:
+            col_winner = st.home_team if st.winner == "home" else st.away_team
+        if goals_winner and col_winner and goals_winner != col_winner:
+            raise ValueError(
+                f"match {no}: fd winner {col_winner!r} contradicts goals "
+                f"({st.home_goals},{st.away_goals}) (fail-loud, P17)"
+            )
+        w = col_winner or goals_winner
+        if w:
+            _record(no, w, "per-match result")
+
+    # Pass 2: downstream inference. Orientation-insensitive — fd's home/away for a
+    # later round need not match the template's slot order (trap #5 spirit).
+    for no, m in KO_MATCHES.items():
+        consumer = ko_states.get(no)
+        if consumer is None or m["stage"] == "r32":
+            continue
+        participants = {consumer.home_team, consumer.away_team}
+        for side in ("home", "away"):
+            slot = m[side]
+            feeder = ko_states.get(slot["feeder"])
+            if feeder is None:
+                continue
+            feeder_teams = {feeder.home_team, feeder.away_team}
+            overlap = participants & feeder_teams
+            if len(overlap) != 1:
+                raise ValueError(
+                    f"match {no} participants {sorted(participants)} match "
+                    f"{len(overlap)} teams of feeder m{slot['feeder']} "
+                    f"{sorted(feeder_teams)} — expected exactly 1 (fail-loud, P17)"
+                )
+            participant = overlap.pop()
+            if slot["type"] == "match_winner":
+                _record(slot["feeder"], participant, f"m{no} participants")
+            else:  # match_loser (third-place play-off): participant lost the feeder
+                other = (feeder_teams - {participant}).pop()
+                _record(slot["feeder"], other, f"m{no} (loser side) participants")
+
+    return resolved
+
+
+def assert_real_bracket_consistent(
+    ko_states: dict[int, KnockoutMatchState], resolved: dict[int, str]
+) -> None:
+    """Every real later-round match whose feeders are fully resolved must pair exactly
+    the expected teams (unordered — fd orientation may differ from the template)."""
+    for no, m in KO_MATCHES.items():
+        st = ko_states.get(no)
+        if st is None or m["stage"] == "r32":
+            continue
+        expected: set[str] = set()
+        determined = True
+        for side in ("home", "away"):
+            slot = m[side]
+            feeder_no = slot["feeder"]
+            feeder = ko_states.get(feeder_no)
+            if feeder_no not in resolved or feeder is None:
+                determined = False
+                break
+            if slot["type"] == "match_winner":
+                expected.add(resolved[feeder_no])
+            else:  # match_loser
+                expected.add(
+                    ({feeder.home_team, feeder.away_team} - {resolved[feeder_no]}).pop()
+                )
+        if determined and expected != {st.home_team, st.away_team}:
+            raise ValueError(
+                f"match {no}: real teams {sorted({st.home_team, st.away_team})} != "
+                f"feeder-derived {sorted(expected)} — fd transient or curation slip "
+                f"(fail-loud, P17; re-run recompute once fd settles)"
+            )
+
+
+# ---------------------------------------------------------------------------
 # Single-elimination play
 # ---------------------------------------------------------------------------
 
@@ -119,12 +244,18 @@ def play_bracket(
     r32: dict[int, tuple[str, str]],
     elo: dict[str, float],
     rng,
-) -> tuple[str, dict[str, set[str]]]:
-    """Play one bracket to a champion. Returns (champion_team_id, reached) where
+    fixed_winners: dict[int, str] | None = None,
+) -> tuple[str, dict[str, set[str]], dict[int, tuple[str, str]]]:
+    """Play one bracket to a champion. Returns (champion_team_id, reached, played):
     reached maps team_id -> the set of stages it played in ('r32'..'final', plus '3rd'
-    for the two semi-final losers). rng is an np.random.Generator (rng.random())."""
+    for the two semi-final losers); played maps match_no -> its (home, away) participants
+    in template orientation (P17 — full-tree slot occupancy). fixed_winners locks real
+    outcomes (P17): those matches advance deterministically, the rest sample via We.
+    rng is an np.random.Generator (rng.random())."""
+    fixed = fixed_winners or {}
     result: dict[int, tuple[str, str]] = {}   # match_no -> (winner, loser)
     reached: dict[str, set[str]] = {}
+    played: dict[int, tuple[str, str]] = {}
 
     for no in _ALL_NOS:
         m = KO_MATCHES[no]
@@ -133,12 +264,21 @@ def play_bracket(
         else:
             home = _feeder_team(m["home"], result)
             away = _feeder_team(m["away"], result)
+        played[no] = (home, away)
         reached.setdefault(home, set()).add(m["stage"])
         reached.setdefault(away, set()).add(m["stage"])
-        if rng.random() < advance_prob(elo[home], elo[away]):
+        locked = fixed.get(no)
+        if locked is not None:
+            if locked not in (home, away):
+                raise ValueError(
+                    f"fixed winner {locked!r} of match {no} is not a participant "
+                    f"({home}, {away}) — inconsistent locking input (fail-loud, P17)"
+                )
+            result[no] = (locked, away if locked == home else home)
+        elif rng.random() < advance_prob(elo[home], elo[away]):
             result[no] = (home, away)
         else:
             result[no] = (away, home)
 
     champion = result[104][0]  # winner of the Final (match 104)
-    return champion, reached
+    return champion, reached, played

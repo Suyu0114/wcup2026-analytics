@@ -390,7 +390,10 @@ class TeamKnockoutResult:
 
 @dataclass
 class SlotOccupancy:
-    """Projected matchups: P(team fills a given R32 slot position)."""
+    """Projected matchups: P(team fills a given bracket slot position).
+
+    Pre-draw: R32 slots only (73–88). Real-bracket mode (P17): the whole tree
+    (73–104) — known matches occupy their slots with prob 1.0."""
     match_no: int
     side: str          # 'home' | 'away'
     team_id: str
@@ -401,20 +404,33 @@ def simulate_tournament(
     matches: list[GroupMatch],
     team_elos: dict[str, float],
     config: SimConfig,
+    ko_states: dict[int, "KnockoutMatchState"] | None = None,
 ) -> tuple[list[TeamKnockoutResult], list[SlotOccupancy]]:
     """Monte Carlo the FULL tournament: group stage (reusing the P2 resolution) → R32 via
     faithful Annex C → single-elimination to the title.
 
-    Returns (per-team round-reach + champion probabilities for all 48 teams, per-R32-slot
+    Returns (per-team round-reach + champion probabilities for all 48 teams, per-slot
     occupancy). Knockout is neutral-site (no HFA, v1) and no-draw (We; see engine/knockout).
     Each qualifying third's group origin is recovered from the team→group map — no change
-    to rank_third_places (P14 §B2). Settled group matches are locked (D3) via _presample;
-    settled knockout locking is a post-draw follow-up (needs the real-bracket mapping)."""
-    from engine.knockout import play_bracket, resolve_r32
+    to rank_third_places (P14 §B2). Settled group matches are locked (D3) via _presample.
+
+    P17 real-bracket mode: when ko_states (real knockout rows keyed by match_no) covers
+    all 16 R32 matches, FIFA's ACTUAL bracket is authoritative — group sampling and the
+    Annex C re-derivation are skipped, resolved winners (fd winner / decisive goals /
+    downstream inference) advance deterministically, and slot occupancy covers the whole
+    tree (73–104). A settled shootout whose winner isn't knowable yet is sampled via We —
+    documented transient until fd supplies it. With ko_states absent/partial the pre-draw
+    path runs unchanged (occupancy stays R32-only: pre-draw full-tree occupancy would be
+    both speculative and unbounded in row count)."""
+    from engine.knockout import (
+        assert_real_bracket_consistent,
+        play_bracket,
+        resolve_r32,
+        resolve_real_winners,
+    )
 
     rng = np.random.default_rng(config.seed)
     N = config.n
-    match_home_scores, match_away_scores = _presample(matches, rng, N)
 
     team_group: dict[str, str] = {}
     groups: dict[str, list[GroupMatch]] = {}
@@ -428,9 +444,42 @@ def simulate_tournament(
     champ = {tid: 0 for tid in all_team_ids}
     reach = {tid: {"r16": 0, "qf": 0, "sf": 0, "final": 0} for tid in all_team_ids}
     r32_nos = sorted(n for n, mm in KO_MATCHES.items() if mm["stage"] == "r32")
+
+    # P17: real-bracket mode preconditions (post-draw, all 16 R32 rows stored).
+    real_r32: dict[int, tuple[str, str]] | None = None
+    fixed_winners: dict[int, str] = {}
+    if ko_states and all(no in ko_states for no in r32_nos):
+        real_r32 = {
+            no: (ko_states[no].home_team, ko_states[no].away_team) for no in r32_nos
+        }
+        fixed_winners = resolve_real_winners(ko_states)
+        assert_real_bracket_consistent(ko_states, fixed_winners)
+
+    occ_nos = sorted(KO_MATCHES) if real_r32 is not None else r32_nos
     occ: dict[tuple[int, str], dict[str, int]] = {
-        (no, side): {} for no in r32_nos for side in ("home", "away")
+        (no, side): {} for no in occ_nos for side in ("home", "away")
     }
+
+    if real_r32 is not None:
+        # Real bracket: no group sampling — every sim plays the same fixed pairings,
+        # with unresolved matches sampled via We (and resolved ones locked).
+        for _sim_i in range(N):
+            champion, reached, played = play_bracket(
+                real_r32, team_elos, rng, fixed_winners=fixed_winners
+            )
+            for no, (h, a) in played.items():
+                occ[(no, "home")][h] = occ[(no, "home")].get(h, 0) + 1
+                occ[(no, "away")][a] = occ[(no, "away")].get(a, 0) + 1
+            champ[champion] += 1
+            for tid, stages in reached.items():
+                for st in ("r16", "qf", "sf", "final"):
+                    if st in stages:
+                        reach[tid][st] += 1
+        return _tournament_results(
+            all_team_ids, team_group, champ, reach, occ, N
+        )
+
+    match_home_scores, match_away_scores = _presample(matches, rng, N)
 
     for sim_i in range(N):
         sim_results: dict[str, tuple[str, str, int, int]] = {}
@@ -458,13 +507,25 @@ def simulate_tournament(
             occ[(no, "home")][h] = occ[(no, "home")].get(h, 0) + 1
             occ[(no, "away")][a] = occ[(no, "away")].get(a, 0) + 1
 
-        champion, reached = play_bracket(r32, team_elos, rng)
+        champion, reached, _played = play_bracket(r32, team_elos, rng)
         champ[champion] += 1
         for tid, stages in reached.items():
             for st in ("r16", "qf", "sf", "final"):
                 if st in stages:
                     reach[tid][st] += 1
 
+    return _tournament_results(all_team_ids, team_group, champ, reach, occ, N)
+
+
+def _tournament_results(
+    all_team_ids: set[str],
+    team_group: dict[str, str],
+    champ: dict[str, int],
+    reach: dict[str, dict[str, int]],
+    occ: dict[tuple[int, str], dict[str, int]],
+    N: int,
+) -> tuple[list[TeamKnockoutResult], list[SlotOccupancy]]:
+    """Counts → probabilities (shared by the real-bracket and pre-draw paths)."""
     team_results = [
         TeamKnockoutResult(
             team_id=tid,

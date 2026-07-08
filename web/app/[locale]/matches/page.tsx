@@ -5,7 +5,6 @@ import { siteTz } from '@/lib/format';
 import type { Locale } from '@/lib/routing';
 import MatchFilters from '@/components/MatchFilters';
 import EmptyState from '@/components/EmptyState';
-import KnockoutTbd from '@/components/KnockoutTbd';
 import ModelVersionSwitcher from '@/components/ModelVersionSwitcher';
 
 // Reading searchParams (?v model version, P10) opts this route into dynamic rendering;
@@ -48,11 +47,11 @@ export default async function MatchesPage({
       ) : matches.length === 0 ? (
         <EmptyState message={t('matches.predictionsEmpty')} />
       ) : (
+        // P17: getMatches now returns ALL stages, so knockout rows flow through the
+        // filters — the pre-draw KnockoutTbd placeholder is obsolete here (/results
+        // keeps its conditional variant).
         <MatchFilters matches={matches} locale={locale as Locale} tz={tz} />
       )}
-
-      {/* Knockout TBD placeholder (trap #10 / §6.4 / TU4) — graceful, no fabricated matchups */}
-      <KnockoutTbd />
     </div>
   );
 }

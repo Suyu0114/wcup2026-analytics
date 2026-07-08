@@ -13,6 +13,7 @@ import argparse
 from collections import defaultdict
 from datetime import date, datetime
 
+from engine.bracket import STAGE_RANGES
 from etl import config, results, venues
 from etl.identity import build_alias_map, resolve
 from sources.fixture_source import Fixture, FootballDataFixtureSource
@@ -80,6 +81,72 @@ def _resolve_score(
     return f.status, f.home_goals, f.away_goals
 
 
+def _knockout_match_no(f: Fixture) -> int | None:
+    """FIFA match number for a knockout fixture via the kickoff-keyed slot schedule
+    (P17 — the bracket-cell join key). Group rows -> None. Fail-loud when a knockout
+    kickoff matches no slot, or when fd's stage disagrees with the FIFA numbering."""
+    if f.stage == "group":
+        return None
+    match_no = venues.schedule_match_no(f.kickoff_utc)
+    if match_no is None:
+        raise ValueError(
+            f"knockout match {f.match_id} kickoff {f.kickoff_utc} matches no FIFA slot — "
+            f"update etl/venues.py KNOCKOUT_SCHEDULE (fail-loud, P17)"
+        )
+    lo, hi = STAGE_RANGES[f.stage]
+    if not lo <= match_no <= hi:
+        raise ValueError(
+            f"knockout match {f.match_id}: fd stage {f.stage!r} but kickoff resolves to "
+            f"FIFA match {match_no} (expected {lo}..{hi}) — cross-source drift (fail-loud, P17)"
+        )
+    return match_no
+
+
+def _ko_result_fields(
+    f: Fixture, status: str, home_goals: int | None, away_goals: int | None
+) -> tuple[str | None, str | None]:
+    """Effective (winner, result_duration) for one row (P17). Knockout finals only.
+
+    ⚠️ fd's fullTime for WC2026 knockout is CUMULATIVE: regulation + extra time + the
+    penalty-shootout goals (verified 2026-07-07: GER v PAR reg 1-1, pens 3-4 → fullTime
+    4-5). So a settled knockout fullTime is ALWAYS decisive and the winner is derivable
+    from goals; fd's score.winner cross-checks it (and can even be null on a FINISHED
+    shootout — verified 537382 SUI v COL — hence the goals fallback). winner/duration
+    are recorded only when the effective score IS fd's score (a curated override that
+    contradicts fd leaves them null); a curated-only settle carries a goals-derived
+    winner but NO duration (calibrate excludes it — the 90' result is unknowable)."""
+    if f.stage == "group" or status != "final":
+        return None, None
+    fd_backed = (
+        f.home_goals is not None
+        and f.away_goals is not None
+        and (f.home_goals, f.away_goals) == (home_goals, away_goals)
+    )
+    decisive = home_goals != away_goals
+    goals_winner = (
+        ("home" if home_goals > away_goals else "away") if decisive else None
+    )
+    if not fd_backed:
+        # Curated-only settle: winner from goals when decisive; a LEVEL curated score
+        # (admin entered the 120' score of a shootout) stays null — PK transient, the
+        # sim falls back to downstream inference until fd confirms.
+        return goals_winner, None
+    if not decisive:
+        raise ValueError(
+            f"knockout match {f.match_id}: level final score ({home_goals},{away_goals}) "
+            f"but fd fullTime includes ET + penalty goals — a settled knockout fullTime "
+            f"cannot be level (fail-loud, P17)"
+        )
+    if f.winner is not None and f.winner != goals_winner:
+        raise ValueError(
+            f"knockout match {f.match_id}: fd winner {f.winner!r} contradicts goals "
+            f"({home_goals},{away_goals}) — verify-don't-assume"
+        )
+    # winner: fd's column when present, else goals-derived (fd can serve winner=null
+    # on a FINISHED shootout — the decisive fullTime is the authority then).
+    return f.winner or goals_winner, f.duration
+
+
 def _match_row(
     f: Fixture,
     home_id: str,
@@ -93,6 +160,7 @@ def _match_row(
         f.match_id, home_id, away_id, f.venue, f.kickoff_utc
     )
     status, home_goals, away_goals = _resolve_score(f, overrides, fd_override_ids)
+    winner, duration = _ko_result_fields(f, status, home_goals, away_goals)
     return {
         "match_id": f.match_id,
         "stage": f.stage,
@@ -105,6 +173,9 @@ def _match_row(
         "status": status,
         "home_goals": home_goals,
         "away_goals": away_goals,
+        "match_no": _knockout_match_no(f),
+        "winner": winner,
+        "result_duration": duration,
     }
 
 
@@ -116,6 +187,23 @@ def assert_settled_have_goals(rows: list[dict]) -> None:
                 f"Settled match {r['match_id']} (status='final') missing goals "
                 f"(home={r['home_goals']}, away={r['away_goals']}) — verify-don't-assume"
             )
+
+
+def assert_knockout_match_nos_unique(rows: list[dict]) -> None:
+    """P17: knockout rows must map to pairwise-distinct FIFA slots (pre-DB guard for the
+    matches.match_no unique constraint — a duplicate means fd kickoff drift crossed
+    slots or a schedule curation slip)."""
+    seen: dict[int, str] = {}
+    for r in rows:
+        if r["stage"] == "group":
+            continue
+        no = r["match_no"]
+        if no in seen:
+            raise ValueError(
+                f"P17: matches {seen[no]} and {r['match_id']} both resolve to FIFA "
+                f"match {no} — check etl/venues.py KNOCKOUT_SCHEDULE vs fd kickoffs"
+            )
+        seen[no] = r["match_id"]
 
 
 def validate(fixtures: list[Fixture], rows: list[dict]) -> None:
@@ -164,6 +252,9 @@ def validate(fixtures: list[Fixture], rows: list[dict]) -> None:
             f"TA1: host flags (home={hh}, away={ha}) != expected "
             f"({EXPECTED_HOST_HOME}, {EXPECTED_HOST_AWAY}) — check etl/venues.py"
         )
+
+    # P17: knockout slots pairwise distinct (pre-DB guard for matches.match_no unique).
+    assert_knockout_match_nos_unique(rows)
 
     # Settled matches must carry a score (verify-don't-assume — mirrors the fail-loud
     # guard in db.fetch_group_matches_with_predictions, but caught here at ingest time).

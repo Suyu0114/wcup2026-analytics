@@ -8,7 +8,10 @@ import pytest
 from etl.ingest_fixtures import (
     _has_teams,
     _kickoff_date,
+    _knockout_match_no,
+    _ko_result_fields,
     _resolve_score,
+    assert_knockout_match_nos_unique,
     assert_settled_have_goals,
     validate,
 )
@@ -169,3 +172,129 @@ def test_resolve_score_fd_override_only_applies_to_flagged_match():
 def test_resolve_score_downgrades_final_without_score_or_override():
     # fd FINISHED but null score and no curated entry -> not promoted to final.
     assert _resolve_score(_fx(match_id="999", status="final"), {}) == ("live", None, None)
+
+
+# --- P17: kickoff -> match_no + knockout result semantics ---
+
+def _ko_fx(stage="r16", kickoff="2026-07-04T17:00:00Z", status="final",
+           hg=None, ag=None, winner=None, duration=None, match_id="ko1"):
+    return Fixture(match_id=match_id, stage=stage, group_label=None,
+                   home_tla="AAA", home_name="A", away_tla="BBB", away_name="B",
+                   kickoff_utc=kickoff, status=status, home_goals=hg, away_goals=ag,
+                   winner=winner, duration=duration)
+
+
+def test_knockout_match_no_group_is_none():
+    assert _knockout_match_no(_fx()) is None
+
+
+def test_knockout_match_no_resolves_from_kickoff():
+    assert _knockout_match_no(_ko_fx(stage="r16", kickoff="2026-07-04T17:00:00Z")) == 90
+    assert _knockout_match_no(_ko_fx(stage="final", kickoff="2026-07-19T19:00:00Z")) == 104
+
+
+def test_knockout_match_no_unscheduled_kickoff_raises():
+    with pytest.raises(ValueError, match="no FIFA slot"):
+        _knockout_match_no(_ko_fx(kickoff="2026-08-01T12:00:00Z"))
+
+
+def test_knockout_match_no_stage_slot_mismatch_raises():
+    # fd claims quarter-final but the kickoff is the m90 (R16) slot -> cross-source drift.
+    with pytest.raises(ValueError, match="cross-source drift"):
+        _knockout_match_no(_ko_fx(stage="qf", kickoff="2026-07-04T17:00:00Z"))
+
+
+def test_ko_result_fields_decisive_regular():
+    f = _ko_fx(hg=2, ag=1, winner="home", duration="regular")
+    assert _ko_result_fields(f, "final", 2, 1) == ("home", "regular")
+
+
+def test_ko_result_fields_derives_winner_from_goals_when_fd_silent():
+    f = _ko_fx(hg=2, ag=1)                     # no fd winner column (e.g. older payload)
+    assert _ko_result_fields(f, "final", 2, 1) == ("home", None)
+
+
+def test_ko_result_fields_pk_cumulative_fulltime():
+    # fd fullTime for a shootout is reg + ET + pens (verified 2026-07-07: GER v PAR
+    # reg 1-1, pens 3-4 -> fullTime 4-5) — decisive, with the winner cross-checked.
+    f = _ko_fx(hg=4, ag=5, winner="away", duration="pk")
+    assert _ko_result_fields(f, "final", 4, 5) == ("away", "pk")
+
+
+def test_ko_result_fields_pk_without_winner_derives_from_goals():
+    # fd can serve winner=null on a FINISHED shootout (verified 537382 SUI v COL,
+    # fullTime 4-3) — the decisive cumulative fullTime is the authority.
+    f = _ko_fx(hg=4, ag=3, winner=None, duration="pk")
+    assert _ko_result_fields(f, "final", 4, 3) == ("home", "pk")
+
+
+def test_ko_result_fields_fd_backed_level_raises():
+    # fullTime includes ET + penalty goals, so a settled knockout can never be level.
+    f = _ko_fx(hg=1, ag=1, winner=None, duration="pk")
+    with pytest.raises(ValueError, match="cannot be level"):
+        _ko_result_fields(f, "final", 1, 1)
+
+
+def test_ko_result_fields_winner_contradicting_goals_raises():
+    f = _ko_fx(hg=2, ag=1, winner="away", duration="regular")
+    with pytest.raises(ValueError, match="contradicts"):
+        _ko_result_fields(f, "final", 2, 1)
+
+
+def test_ko_result_fields_curated_level_settle_stays_null():
+    # admin-entered level KO score (the 120' score of a shootout), fd silent: PK
+    # transient -> (None, None), no raise (the sim falls back to downstream
+    # inference / We sampling until fd confirms).
+    f = _ko_fx(hg=None, ag=None, status="scheduled")
+    assert _ko_result_fields(f, "final", 1, 1) == (None, None)
+
+
+def test_ko_result_fields_curated_decisive_settle_derives_winner_without_duration():
+    # curated-only decisive settle: winner from goals; duration unknowable (calibrate
+    # will exclude the match from 90-minute scoring).
+    f = _ko_fx(hg=None, ag=None, status="scheduled")
+    assert _ko_result_fields(f, "final", 2, 0) == ("home", None)
+
+
+def test_ko_result_fields_group_and_unsettled_are_null():
+    assert _ko_result_fields(_fx(status="final", hg=1, ag=1), "final", 1, 1) == (None, None)
+    assert _ko_result_fields(_ko_fx(status="scheduled"), "scheduled", None, None) == (None, None)
+
+
+def test_get_fixtures_extracts_winner_and_duration(monkeypatch):
+    src = _src_returning(monkeypatch, [
+        _fd_match(status="FINISHED", score={
+            "winner": "AWAY_TEAM", "duration": "PENALTY_SHOOTOUT",
+            "fullTime": {"home": 1, "away": 1},
+        }),
+    ])
+    fx = src.get_fixtures()[0]
+    assert (fx.winner, fx.duration) == ("away", "pk")
+
+
+def test_get_fixtures_draw_winner_maps_to_none(monkeypatch):
+    src = _src_returning(monkeypatch, [
+        _fd_match(status="FINISHED", score={
+            "winner": "DRAW", "duration": "REGULAR", "fullTime": {"home": 1, "away": 1},
+        }),
+    ])
+    fx = src.get_fixtures()[0]
+    assert (fx.winner, fx.duration) == (None, "regular")
+
+
+def test_get_fixtures_unknown_winner_enum_raises(monkeypatch):
+    src = _src_returning(monkeypatch, [
+        _fd_match(score={"winner": "SOMETHING", "fullTime": {"home": 1, "away": 0}}),
+    ])
+    with pytest.raises(ValueError, match="score.winner"):
+        src.get_fixtures()
+
+
+def test_assert_knockout_match_nos_unique_raises_on_duplicate():
+    rows = [
+        {"match_id": "a", "stage": "r16", "match_no": 90},
+        {"match_id": "b", "stage": "group", "match_no": None},
+        {"match_id": "c", "stage": "r16", "match_no": 90},
+    ]
+    with pytest.raises(ValueError, match="both resolve"):
+        assert_knockout_match_nos_unique(rows)

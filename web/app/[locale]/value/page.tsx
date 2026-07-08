@@ -25,7 +25,12 @@ export default async function ValuePage({
   const options: MatchOption[] = matches.map((m) => {
     const home = displayTeamName(m.home, locale as Locale);
     const away = displayTeamName(m.away, locale as Locale);
-    const grp = m.group_label ? ` · ${t('groups.groupLabel')} ${m.group_label}` : '';
+    // P17: knockout rows label with the stage (no group_label).
+    const grp = m.group_label
+      ? ` · ${t('groups.groupLabel')} ${m.group_label}`
+      : m.stage !== 'group'
+        ? ` · ${t((m.stage === '3rd' ? 'stage.third' : `stage.${m.stage}`) as 'stage.r32')}`
+        : '';
     return {
       id: m.match_id,
       label: `${home} vs ${away}${grp}`,

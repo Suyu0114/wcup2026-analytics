@@ -89,11 +89,16 @@ export default function FeaturedMatchCard({
               {t('featured.todayBadge')}
             </span>
           )}
-          {match.group_label && (
+          {match.group_label ? (
             <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
               {t('groups.groupLabel')} {match.group_label}
             </span>
-          )}
+          ) : match.stage !== 'group' ? (
+            // P17: knockout rows have no group_label — badge shows the stage instead.
+            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
+              {t((match.stage === '3rd' ? 'stage.third' : `stage.${match.stage}`) as 'stage.r32')}
+            </span>
+          ) : null}
           {match.model?.upset.tier && <UpsetBadge tier={match.model.upset.tier} />}
           {match.divergence?.flag && <DivergenceBadge />}
         </div>

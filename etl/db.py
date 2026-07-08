@@ -223,10 +223,12 @@ def fetch_matches_with_names() -> dict:
 # --- calibration reads (P3 §6) ---
 
 def fetch_settled_matches() -> list[dict]:
+    # stage + result_duration (P17): calibrate scores an ET/PK knockout match as a
+    # 90-minute draw (fd fullTime includes extra time — 1X2 markets are 90-minute).
     return (
         get_client()
         .table("matches")
-        .select("match_id,home_goals,away_goals")
+        .select("match_id,stage,home_goals,away_goals,result_duration")
         .eq("status", "final")
         .execute()
         .data
@@ -462,7 +464,41 @@ def replace_group_scenarios(rows: list[dict]) -> int:
     return len(rows)
 
 
-# --- P14 reads/writes (full-tournament knockout Monte Carlo) ---
+# --- P14/P17 reads/writes (full-tournament knockout Monte Carlo) ---
+
+def fetch_knockout_matches() -> list[dict]:
+    """Real knockout rows keyed by FIFA match_no (P17 — settled-knockout locking).
+
+    Fail-loud: every stored knockout row must carry a distinct match_no; a null one
+    means p17.sql wasn't applied (or ingest_fixtures hasn't re-run since) — locking
+    on partial data would silently mis-simulate the bracket.
+    """
+    rows = (
+        get_client()
+        .table("matches")
+        .select(
+            "match_id,match_no,stage,home_team,away_team,status,"
+            "home_goals,away_goals,winner,result_duration"
+        )
+        .neq("stage", "group")
+        .execute()
+        .data
+    )
+    seen: dict[int, str] = {}
+    for r in rows:
+        if r["match_no"] is None:
+            raise ValueError(
+                f"knockout match {r['match_id']} has no match_no — apply "
+                f"etl/sql/migrations/p17.sql then re-run etl.ingest_fixtures (fail-loud)"
+            )
+        if r["match_no"] in seen:
+            raise ValueError(
+                f"matches {seen[r['match_no']]} and {r['match_id']} share match_no "
+                f"{r['match_no']} (fail-loud)"
+            )
+        seen[r["match_no"]] = r["match_id"]
+    return rows
+
 
 def upsert_knockout_sim(rows: list[dict]) -> int:
     """Upsert to knockout_sim on_conflict=(team_id, model_version). Idempotent."""

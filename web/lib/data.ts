@@ -165,17 +165,22 @@ function buildMatchMarket(rows: OddsRow[]): MatchMarket | null {
 }
 
 /** Build MatchView[] (predictions + odds + divergence) for a stage scope. Shared by
- * getMatches (group) and getKnockout (knockout); the only difference is the stage filter,
+ * getMatches (all stages, P17) and getKnockout (knockout); only the stage filter differs,
  * so the prediction/odds/upset/divergence logic stays in one place (D5 isolation intact). */
 async function buildMatchViews(
   client: NonNullable<ReturnType<typeof getSupabase>>,
   mv: string,
-  scope: 'group' | 'knockout',
+  scope: 'group' | 'knockout' | 'all',
 ): Promise<MatchView[]> {
   const matchesSel = client
     .from('matches')
-    .select('match_id,stage,group_label,home_team,away_team,kickoff_utc,status');
-  const matchesQuery = scope === 'group' ? matchesSel.eq('stage', 'group') : matchesSel.neq('stage', 'group');
+    .select('match_id,stage,group_label,match_no,home_team,away_team,kickoff_utc,status,home_goals,away_goals,winner,result_duration');
+  const matchesQuery =
+    scope === 'group'
+      ? matchesSel.eq('stage', 'group')
+      : scope === 'knockout'
+        ? matchesSel.neq('stage', 'group')
+        : matchesSel;
   const [{ data: teams, error: te }, { data: matches, error: me }, { data: preds, error: pe }] =
     await Promise.all([
       client.from('teams').select('team_id,name_en,name_zh,elo'),
@@ -244,10 +249,15 @@ async function buildMatchViews(
       match_id: m.match_id,
       stage: m.stage,
       group_label: m.group_label,
+      match_no: m.match_no === null ? null : Number(m.match_no),
       kickoff_utc: m.kickoff_utc,
       status: m.status,
       home: { team_id: home.team_id, name_en: home.name_en, name_zh: home.name_zh, elo: Number(home.elo) },
       away: { team_id: away.team_id, name_en: away.name_en, name_zh: away.name_zh, elo: Number(away.elo) },
+      home_goals: m.home_goals === null ? null : Number(m.home_goals),
+      away_goals: m.away_goals === null ? null : Number(m.away_goals),
+      winner: m.winner ?? null,
+      result_duration: m.result_duration ?? null,
       model,
       market,
       divergence,
@@ -262,7 +272,9 @@ export async function getMatches(modelVersion?: string): Promise<MatchesResponse
   const client = getSupabase();
   if (!client) return { matches: [], unavailable: true };
   try {
-    return { matches: await buildMatchViews(client, mv, 'group'), unavailable: false };
+    // P17: all stages — during the knockout rounds the group matches are all final,
+    // so a group-only scope would leave home/matches/value/admin empty.
+    return { matches: await buildMatchViews(client, mv, 'all'), unavailable: false };
   } catch {
     return { matches: [], unavailable: true };
   }
@@ -391,6 +403,9 @@ export async function getBracketSlots(modelVersion?: string): Promise<BracketSlo
       client.from('teams').select('team_id,name_en,name_zh'),
     ]);
     if (re || te) throw re || te;
+    // Row count: real-bracket mode emits the whole tree (73–104) but slots are bounded
+    // (~192 rows/version) — well under the PostgREST ~1000-row response cap. Revisit if
+    // full-tree occupancy is ever emitted pre-draw (unbounded candidates per side).
     const teamMap = new Map((teams ?? []).map((t) => [t.team_id, t]));
     // keep only the top occupant per (match_no, side)
     const best = new Map<string, { match_no: number; side: string; team_id: string; prob: number }>();
@@ -428,7 +443,7 @@ export async function getFixtures(): Promise<FixturesResponse> {
       client.from('teams').select('team_id,name_en,name_zh,elo'),
       client
         .from('matches')
-        .select('match_id,stage,group_label,home_team,away_team,kickoff_utc,status,home_goals,away_goals'),
+        .select('match_id,stage,group_label,home_team,away_team,kickoff_utc,status,home_goals,away_goals,winner,result_duration'),
     ]);
     if (te || me) throw te || me;
     const teamMap = new Map((teams ?? []).map((t) => [t.team_id, t]));
@@ -447,6 +462,8 @@ export async function getFixtures(): Promise<FixturesResponse> {
         away: { team_id: away.team_id, name_en: away.name_en, name_zh: away.name_zh, elo: Number(away.elo) },
         home_goals: m.home_goals === null ? null : Number(m.home_goals),
         away_goals: m.away_goals === null ? null : Number(m.away_goals),
+        winner: m.winner ?? null,
+        result_duration: m.result_duration ?? null,
       });
     }
     fixtures.sort((a, b) => a.kickoff_utc.localeCompare(b.kickoff_utc));

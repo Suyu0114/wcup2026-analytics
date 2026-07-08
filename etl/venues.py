@@ -79,45 +79,53 @@ MANUAL_VENUE = {
 # Provenance (curated 2026-06-28): en.wikipedia.org/wiki/2026_FIFA_World_Cup_knockout_stage
 # (slot venues + local kick-offs) and the FIFA/NY-NJ schedule for the final (3 p.m. EDT).
 # Local kick-offs → UTC with venue time zones: EDT/Toronto UTC−4, CDT UTC−5, PDT/Vancouver
-# UTC−7, Mexico CST UTC−6 (no DST). Match numbers (73–104, FIFA's) given for provenance only.
-KNOCKOUT_VENUE_BY_KICKOFF: dict[str, str] = {
+# UTC−7, Mexico CST UTC−6 (no DST). Values are (FIFA match number, venue) — P17 promotes
+# the match numbers to data: the same kick-off key that resolves a host venue also links
+# an fd fixture to its engine/bracket.py slot (matches.match_no), so real knockout rows
+# land in the bracket-tree cells without curating an fd match_id per match.
+KNOCKOUT_SCHEDULE: dict[str, tuple[int, str]] = {
     # Round of 32 (m73–m88)
-    "2026-06-28T19:00:00+00:00": "Inglewood",       # m73
-    "2026-06-29T17:00:00+00:00": "Houston",         # m76
-    "2026-06-29T20:30:00+00:00": "Foxborough",      # m74
-    "2026-06-30T01:00:00+00:00": "Guadalupe",       # m75
-    "2026-06-30T17:00:00+00:00": "Arlington",       # m78
-    "2026-06-30T21:00:00+00:00": "East Rutherford", # m77
-    "2026-07-01T01:00:00+00:00": "Mexico City",     # m79
-    "2026-07-01T16:00:00+00:00": "Atlanta",         # m80
-    "2026-07-01T20:00:00+00:00": "Seattle",         # m82
-    "2026-07-02T00:00:00+00:00": "Santa Clara",     # m81
-    "2026-07-02T19:00:00+00:00": "Inglewood",       # m84
-    "2026-07-02T23:00:00+00:00": "Toronto",         # m83
-    "2026-07-03T03:00:00+00:00": "Vancouver",       # m85
-    "2026-07-03T18:00:00+00:00": "Arlington",       # m88
-    "2026-07-03T22:00:00+00:00": "Miami Gardens",   # m86
-    "2026-07-04T01:30:00+00:00": "Kansas City",     # m87
+    "2026-06-28T19:00:00+00:00": (73, "Inglewood"),
+    "2026-06-29T17:00:00+00:00": (76, "Houston"),
+    "2026-06-29T20:30:00+00:00": (74, "Foxborough"),
+    "2026-06-30T01:00:00+00:00": (75, "Guadalupe"),
+    "2026-06-30T17:00:00+00:00": (78, "Arlington"),
+    "2026-06-30T21:00:00+00:00": (77, "East Rutherford"),
+    "2026-07-01T01:00:00+00:00": (79, "Mexico City"),
+    "2026-07-01T16:00:00+00:00": (80, "Atlanta"),
+    "2026-07-01T20:00:00+00:00": (82, "Seattle"),
+    "2026-07-02T00:00:00+00:00": (81, "Santa Clara"),
+    "2026-07-02T19:00:00+00:00": (84, "Inglewood"),
+    "2026-07-02T23:00:00+00:00": (83, "Toronto"),
+    "2026-07-03T03:00:00+00:00": (85, "Vancouver"),
+    "2026-07-03T18:00:00+00:00": (88, "Arlington"),
+    "2026-07-03T22:00:00+00:00": (86, "Miami Gardens"),
+    "2026-07-04T01:30:00+00:00": (87, "Kansas City"),
     # Round of 16 (m89–m96)
-    "2026-07-04T17:00:00+00:00": "Houston",         # m90
-    "2026-07-04T21:00:00+00:00": "Philadelphia",    # m89
-    "2026-07-05T20:00:00+00:00": "East Rutherford", # m91
-    "2026-07-06T00:00:00+00:00": "Mexico City",     # m92
-    "2026-07-06T19:00:00+00:00": "Arlington",       # m93
-    "2026-07-07T00:00:00+00:00": "Seattle",         # m94
-    "2026-07-07T16:00:00+00:00": "Atlanta",         # m95
-    "2026-07-07T20:00:00+00:00": "Vancouver",       # m96
+    "2026-07-04T17:00:00+00:00": (90, "Houston"),
+    "2026-07-04T21:00:00+00:00": (89, "Philadelphia"),
+    "2026-07-05T20:00:00+00:00": (91, "East Rutherford"),
+    "2026-07-06T00:00:00+00:00": (92, "Mexico City"),
+    "2026-07-06T19:00:00+00:00": (93, "Arlington"),
+    "2026-07-07T00:00:00+00:00": (94, "Seattle"),
+    "2026-07-07T16:00:00+00:00": (95, "Atlanta"),
+    "2026-07-07T20:00:00+00:00": (96, "Vancouver"),
     # Quarter-finals (m97–m100)
-    "2026-07-09T20:00:00+00:00": "Foxborough",      # m97
-    "2026-07-10T19:00:00+00:00": "Inglewood",       # m98
-    "2026-07-11T21:00:00+00:00": "Miami Gardens",   # m99
-    "2026-07-12T01:00:00+00:00": "Kansas City",     # m100
+    "2026-07-09T20:00:00+00:00": (97, "Foxborough"),
+    "2026-07-10T19:00:00+00:00": (98, "Inglewood"),
+    "2026-07-11T21:00:00+00:00": (99, "Miami Gardens"),
+    "2026-07-12T01:00:00+00:00": (100, "Kansas City"),
     # Semi-finals (m101–m102)
-    "2026-07-14T19:00:00+00:00": "Arlington",       # m101
-    "2026-07-15T19:00:00+00:00": "Atlanta",         # m102
+    "2026-07-14T19:00:00+00:00": (101, "Arlington"),
+    "2026-07-15T19:00:00+00:00": (102, "Atlanta"),
     # Third-place play-off (m103) + Final (m104)
-    "2026-07-18T21:00:00+00:00": "Miami Gardens",   # m103
-    "2026-07-19T19:00:00+00:00": "East Rutherford", # m104
+    "2026-07-18T21:00:00+00:00": (103, "Miami Gardens"),
+    "2026-07-19T19:00:00+00:00": (104, "East Rutherford"),
+}
+
+# Derived kickoff -> venue view (pre-P17 shape; host_flags and existing tests use this).
+KNOCKOUT_VENUE_BY_KICKOFF: dict[str, str] = {
+    ts: venue for ts, (_no, venue) in KNOCKOUT_SCHEDULE.items()
 }
 
 # A knockout match resolves to the curated slot whose kick-off is within this window.
@@ -132,23 +140,29 @@ def _parse_utc(ts: str) -> datetime:
     return dt.astimezone(timezone.utc)
 
 
-_SCHEDULE = [(_parse_utc(ts), venue) for ts, venue in KNOCKOUT_VENUE_BY_KICKOFF.items()]
+_SCHEDULE = [
+    (_parse_utc(ts), no, venue) for ts, (no, venue) in KNOCKOUT_SCHEDULE.items()
+]
 
-# Import-time guards (fail-loud on a curation slip): all venues known, 32 slots, and no two
-# kick-offs so close that the nearest-slot resolution would be ambiguous.
-for _venue in KNOCKOUT_VENUE_BY_KICKOFF.values():
+# Import-time guards (fail-loud on a curation slip): all venues known, 32 slots covering
+# exactly FIFA match numbers 73..104, and no two kick-offs so close that the nearest-slot
+# resolution would be ambiguous.
+for _no, _venue in KNOCKOUT_SCHEDULE.values():
     if _venue not in STADIUM_COUNTRY:
         raise ValueError(f"knockout schedule venue {_venue!r} not in STADIUM_COUNTRY")
-if len(KNOCKOUT_VENUE_BY_KICKOFF) != 32:
-    raise ValueError(f"knockout schedule has {len(KNOCKOUT_VENUE_BY_KICKOFF)} slots, expected 32")
-_times = sorted(dt for dt, _ in _SCHEDULE)
+if len(KNOCKOUT_SCHEDULE) != 32:
+    raise ValueError(f"knockout schedule has {len(KNOCKOUT_SCHEDULE)} slots, expected 32")
+_nos = {no for no, _ in KNOCKOUT_SCHEDULE.values()}
+if _nos != set(range(73, 105)):
+    raise ValueError(f"knockout schedule match numbers {sorted(_nos)} != 73..104")
+_times = sorted(dt for dt, _, _ in _SCHEDULE)
 for _a, _b in zip(_times, _times[1:]):
     if _b - _a < 2 * SCHEDULE_MATCH_WINDOW:
         raise ValueError(f"knockout kick-offs {_a} and {_b} too close — slot key ambiguous")
 
 
-def _schedule_venue(kickoff_utc: str | None) -> str | None:
-    """Nearest scheduled knockout slot (within the window) -> its curated venue, else None."""
+def _schedule_slot(kickoff_utc: str | None) -> tuple[int, str] | None:
+    """Nearest scheduled knockout slot within the window -> (match_no, venue), else None."""
     if not kickoff_utc:
         return None
     try:
@@ -156,11 +170,26 @@ def _schedule_venue(kickoff_utc: str | None) -> str | None:
     except ValueError:
         return None
     best, best_delta = None, None
-    for sched_dt, venue in _SCHEDULE:
+    for sched_dt, no, venue in _SCHEDULE:
         delta = abs(sched_dt - ko)
         if delta <= SCHEDULE_MATCH_WINDOW and (best_delta is None or delta < best_delta):
-            best, best_delta = venue, delta
+            best, best_delta = (no, venue), delta
     return best
+
+
+def _schedule_venue(kickoff_utc: str | None) -> str | None:
+    """Nearest scheduled knockout slot (within the window) -> its curated venue, else None."""
+    slot = _schedule_slot(kickoff_utc)
+    return slot[1] if slot else None
+
+
+def schedule_match_no(kickoff_utc: str | None) -> int | None:
+    """FIFA match number (73..104) for a knockout kick-off, else None (P17).
+
+    Same nearest-slot resolution as the venue path: slots are ≥3.5 h apart so the
+    match is unambiguous while tolerating minor fd kick-off drift (±75 min)."""
+    slot = _schedule_slot(kickoff_utc)
+    return slot[0] if slot else None
 
 
 def host_flags(

@@ -15,6 +15,16 @@ export default function KnockoutMatchCard({ match, locale }: { match: MatchView;
   const we = model
     ? { home: model.p_home + 0.5 * model.p_draw, away: model.p_away + 0.5 * model.p_draw }
     : null;
+  // P17: settled/live cards lead with the real score. fd fullTime is cumulative
+  // (reg + ET + pens), so the PK/aet context comes from result_duration.
+  const hasScore = match.home_goals !== null && match.away_goals !== null;
+  const showScore = hasScore && (match.status === 'final' || match.status === 'live');
+  const endedNote =
+    match.status === 'final' && match.result_duration === 'pk'
+      ? t('bracket.pk')
+      : match.status === 'final' && match.result_duration === 'et'
+        ? t('bracket.aet')
+        : null;
 
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-3">
@@ -27,12 +37,20 @@ export default function KnockoutMatchCard({ match, locale }: { match: MatchView;
           <span className="truncate">{displayTeamName(home, locale)}</span>
           <Flag teamId={home.team_id} />
         </div>
-        <span className="text-xs text-slate-400">vs</span>
+        {showScore ? (
+          <span className="text-sm font-semibold tabular-nums text-slate-900">
+            {match.home_goals}–{match.away_goals}
+          </span>
+        ) : (
+          <span className="text-xs text-slate-400">vs</span>
+        )}
         <div className="flex min-w-0 items-center justify-start gap-1.5 text-left text-sm font-medium text-slate-800">
           <Flag teamId={away.team_id} />
           <span className="truncate">{displayTeamName(away, locale)}</span>
         </div>
       </div>
+
+      {endedNote && <div className="mb-2 text-center text-xs text-slate-500">{endedNote}</div>}
 
       {we && (
         <div className="mb-2 flex items-center justify-between text-xs text-slate-500">

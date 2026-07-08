@@ -23,9 +23,11 @@ export default async function AdminPage({
     .map((m) => ({
       matchId: m.match_id,
       group: m.group_label,
+      stage: m.stage,
       homeName: m.home.name_zh ?? m.home.name_en,
       awayName: m.away.name_zh ?? m.away.name_en,
       kickoff: m.kickoff_utc,
+      settled: m.status === 'final',
       existing: manual[m.match_id] ?? null,
     }));
 

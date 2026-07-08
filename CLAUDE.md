@@ -50,13 +50,13 @@ World Cup 2026 Analytics — 賽事預測/分析平台的工程指南。
 - **canonical bracket＝[engine/bracket.py](engine/bracket.py)（single source of truth）**：matches 73–104 的 slot 模板＋8 個第三名候選集＋feeder tree。web 端讀**生成**的 [web/lib/bracket.data.json](web/lib/bracket.data.json)（`python web/tests/fixtures/gen_bracket.py` 重生；parity 由 [tests/test_bracket.py](tests/test_bracket.py) 把關，比照 golden_vectors，trap #13c）。structural 不變量測試（12 勝者/亞軍各一、8 第三名槽、候選集 40、tree 完整）。**改 engine/bracket.py 要重生 JSON**。
 - **前端 `/bracket`**（[web/app/[locale]/bracket/page.tsx](web/app/[locale]/bracket/page.tsx)，**force-dynamic**、受 `?v=`）：[BracketView](web/components/BracketView.tsx) 永遠畫 slot 模板（抽籤前 TBD）；抽籤後 `getKnockout(v)`（與 `getMatches` 共用 `buildMatchViews`）列出真實淘汰賽 [KnockoutMatchCard](web/components/KnockoutMatchCard.tsx)：**single-match advance %（We＝p_home+½·p_draw，trap #6）＋ model vs market 並列**。
 - **predict 免改**：[etl/predict.py](etl/predict.py) 無 stage filter，淘汰賽 row 一有隊即自動預測（中立場，HFA 僅地主自家場經 is_host flags）。
-- ⚠️ **post-draw 狀態（抽籤後，2026-06-28）**：(a) venue **已解**＝P16 schedule 預策展（kickoff-keyed，含 R16→Final）；(c) odds 去重 **已解**＝P16 `pick_match` 時間消歧；(d) **已驗**＝fd 抽籤後可靠填淘汰賽隊伍（不需手動種子）；**(b) 仍待**＝`match_no↔fd match_id` 策展才能把真實場次填進 bracket **格內**（目前真實場次走獨立 match-card 清單，格內用 `bracket_slot_sim`）。見 [docs/p16-knockout-postdraw-spec.md](docs/p16-knockout-postdraw-spec.md)。
+- ⚠️ **post-draw 狀態（抽籤後，2026-06-28）**：(a) venue **已解**＝P16 schedule 預策展（kickoff-keyed，含 R16→Final）；(c) odds 去重 **已解**＝P16 `pick_match` 時間消歧；(d) **已驗**＝fd 抽籤後可靠填淘汰賽隊伍（不需手動種子）；**(b) 已解（P17）**＝`matches.match_no` 由 kickoff→slot 排程解析，真實場次直接入 bracket **格內**（match-card 清單保留）。見 [docs/p16-knockout-postdraw-spec.md](docs/p16-knockout-postdraw-spec.md) / [docs/p17-knockout-real-bracket-spec.md](docs/p17-knockout-real-bracket-spec.md)。
 
 ### P14 — 淘汰賽奪冠/晉級模擬（backend＋前端 code 完成；規劃 [docs/p14-knockout-model-plan.md](docs/p14-knockout-model-plan.md)）
 - **bracket-wide Monte Carlo**：小組賽解析（重用 P2）→ R32（**faithful Annex C**）→ 單淘汰至奪冠。產 per-team `p_make_r16/qf/sf/final`＋`p_champion`（`knockout_sim`）＋ per-R32-slot 佔據（`bracket_slot_sim`＝projected matchups）。**模型輸出**（有 model_version、實驗性）。
 - **Annex C＝[engine/data/annex_c.json](engine/data/annex_c.json)（495 列，事實非可推導）**：C(12,8) 每組合每槽各有 **3–214 種合法配對** → FIFA 指定，**不可算**。由 [engine/data/gen_annex_c.py](engine/data/gen_annex_c.py) 從 Wikipedia「Combinations…round of 32」表 scrape＋**硬驗證**（495、雙射、no same-group、且每 `3X` ∈ [engine/bracket.py](engine/bracket.py) 候選集＝與已驗 bracket 交叉核對）。重抓需 `requests`+`lxml`。
 - **引擎 [engine/knockout.py](engine/knockout.py)**：`advance_prob`＝We＝`p_home+½·p_draw`（無平局，含 ET/PK，trap #6；**不另模 PK**）；`resolve_r32`（Annex C 配第三名）；`play_bracket`。**淘汰賽中立場（v1 無 HFA）**——地主自家場 host-aware 為 follow-up（需 slot→venue 策展，同 P13 gate；`advance_prob` 已留 host 參數）。
-- **driver [engine/group_sim.py](engine/group_sim.py) `simulate_tournament`**：重用 P2 解析（`_presample` 抽出共用；**不改 `rank_third_places` 簽名**——第三名組來源用 `team_group` map 反查，§B2）。settled 小組賽鎖定（D3）；**settled 淘汰賽鎖定為 post-draw follow-up**。
+- **driver [engine/group_sim.py](engine/group_sim.py) `simulate_tournament`**：重用 P2 解析（`_presample` 抽出共用；**不改 `rank_third_places` 簽名**——第三名組來源用 `team_group` map 反查，§B2）。settled 小組賽鎖定（D3）；settled 淘汰賽鎖定 **P17 已解**（`ko_states` real-bracket mode）。
 - **job [etl/knockout_sim.py](etl/knockout_sim.py)**：讀同 simulate 的 group matches+preds+Elo → `knockout_sim` upsert＋`bracket_slot_sim` delete-by-version+insert。**每輪對 v1.1、v1.2 各跑一次**（接在 `etl.simulate` 後；須先套 [etl/sql/migrations/p14.sql](etl/sql/migrations/p14.sql)）。**recompute.yml 已加入 `knockout_sim`（P16 起兩版各跑）**；⚠️ **p14.sql 未套用前 recompute 會寫不存在的表而炸 → 先套**。
 - **前端已完成**：champion/advancement/projected UI（`getKnockoutSim`/`getBracketSlots`，**experimental、無對應市場盤＝trap #7 例外**，同 P11）＋ P15 ESPN-style bracket tree／collapsible champion odds。
 
@@ -67,6 +67,15 @@ World Cup 2026 Analytics — 賽事預測/分析平台的工程指南。
 - **A3 recompute 兩版**：[.github/workflows/recompute.yml](.github/workflows/recompute.yml) `simulate`/`knockout_sim` 各跑 `dc-v1.2`+`dc-v1.1`（`?v=` 切換器在 groups/bracket 都有資料）。
 - **誠實**：v1.1≈v1.2（小組賽鎖定＋`knockout_sim` 用單一 current Elo＝非版本化）；v1.1 淘汰賽 match cards graceful 空（predict 只出 dc-v1.2）。
 - **操作**：先在 Supabase 套 [p14.sql](etl/sql/migrations/p14.sql)（+ [p12.sql](etl/sql/migrations/p12.sql)），再依 runbook 跑 `ingest_fixtures → predict --only-unsettled → simulate×2 → knockout_sim×2 → ingest_odds → calibrate`（見 spec §B/§C）。
+
+### P17 — 真實淘汰賽入格 + 晉級自動預測 + 各頁恢復場次（code 完成；spec [docs/p17-knockout-real-bracket-spec.md](docs/p17-knockout-real-bracket-spec.md)）
+- **P13/P16 pending item (b) 已解**：`matches.match_no`（[p17.sql](etl/sql/migrations/p17.sql)，73–104 unique）由 **kickoff→slot 排程解析**（[etl/venues.py](etl/venues.py) `KNOCKOUT_SCHEDULE`＝P16 註解升格為資料，`schedule_match_no()` 同 ±75min 機制；不做 fd match_id 逐場策展）。ingest 交叉驗證 fd stage vs `STAGE_RANGES`（漂移 raise）。
+- **KO 賽果語意**：`matches.winner`/`result_duration`（fd `score.winner`/`score.duration`）。⚠️ **fd fullTime＝累計 正規+加時+PK 進球**（實測 GER v PAR 4-5＝reg 1-1+pens 3-4）→ settled KO 恆分勝負、勝者可由比分導出；fd 會在已完賽 PK 場給 **winner=null**（537382）→ 比分 fallback；`penalties` 子區塊不可信、不驗證。fd-backed 平分 → raise；curated-only 平分 settle → null＝**PK transient（以 We 抽樣、自癒，非 bug）**；admin 須輸入「含 PK 的總比分」（UI 有提示）。
+- **模擬鎖定（P14「settled 淘汰賽鎖定 follow-up」已解）**：`simulate_tournament(..., ko_states=)` real-bracket mode——16 場 R32 真實隊伍齊 → 跳過小組抽樣+Annex C（FIFA 實際 bracket 權威），`resolve_real_winners`（winner 欄→比分→**下游反推**含 m103 loser）鎖定晉級、矛盾 raise（無序比對，fd 定向可異於模板）；occupancy 擴到 73–104 全樹。被淘汰隊 p_champion=0。ko_states 缺 → pre-draw 路徑不變（occupancy 維持 R32-only）。
+- **calibrate 誠實修正（既有 bug）**：KO `et`/`pk` → 90 分鐘記 **draw**（模型/市場都是 90 分鐘 1X2；fd fullTime 含加時）；duration null（純手動 settle）排除計分。⚠️ 修正前的 calibration_runs 歷史列含錯誤計分（append-only 不回溯）。
+- **前端**：`getMatches` → **all stages**（首頁/matches/value/admin 恢復有料；`getKnockout` 仍 knockout-only）；`/bracket` 格內優先序＝**真實場次**（比分+PK+LIVE，fd 定向）→ projected → slot label，圖例分「實際」/「模型佔位」（trap #13b）；下方 model-vs-market 卡片清單保留（hard rule #7）；admin KO 提示**輸入含加時比分**（否則 fd 補分觸發 conflict guard）；`/matches` KnockoutTbd 移除；順修 FixtureRow `stage.3rd` dotted-key bug（B2）。
+- **自動化**：[recompute.yml](.github/workflows/recompute.yml) 加 cron **每 2 小時**（fd 自動填下輪 → ingest → predict 全自動；fail-loud 失敗下一 tick 自癒）。⚠️ **決賽（2026-07-19）後移除 cron**。
+- **操作順序（硬性）**：先 Supabase 套 **[p17.sql](etl/sql/migrations/p17.sql)** → 再 merge/部署 → 跑一次 Recompute。反序＝web select 不存在的欄位，頁面 graceful-empty。
 
 ## 結構
 ```

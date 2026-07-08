@@ -7,10 +7,12 @@ import pytest
 
 from etl.venues import (
     HOST_TEAMS,
+    KNOCKOUT_SCHEDULE,
     KNOCKOUT_VENUE_BY_KICKOFF,
     MANUAL_VENUE,
     STADIUM_COUNTRY,
     host_flags,
+    schedule_match_no,
 )
 
 
@@ -86,3 +88,23 @@ def test_host_flags_knockout_unscheduled_kickoff_raises():
     # A host match whose kick-off matches no slot must fail loud (e.g. a real schedule change).
     with pytest.raises(ValueError, match="TA1"):
         host_flags("KO5", "US", "BR", None, "2026-08-01T12:00:00Z")
+
+
+# --- P17: kickoff -> FIFA match_no (the bracket-cell join key) ---
+
+def test_knockout_schedule_match_nos_cover_73_to_104():
+    nos = {no for no, _ in KNOCKOUT_SCHEDULE.values()}
+    assert nos == set(range(73, 105))
+    # the derived venue view stays in lockstep with the schedule
+    assert KNOCKOUT_VENUE_BY_KICKOFF == {ts: v for ts, (_no, v) in KNOCKOUT_SCHEDULE.items()}
+
+
+def test_schedule_match_no_exact_and_with_drift():
+    assert schedule_match_no("2026-07-02T00:00:00Z") == 81           # m81, Santa Clara
+    assert schedule_match_no("2026-07-02T00:20:00+00:00") == 81      # ±75-min window
+    assert schedule_match_no("2026-07-19T19:00:00Z") == 104          # the Final
+
+
+def test_schedule_match_no_unmatched_returns_none():
+    assert schedule_match_no("2026-08-01T12:00:00Z") is None
+    assert schedule_match_no(None) is None

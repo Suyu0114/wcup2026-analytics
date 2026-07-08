@@ -12,7 +12,15 @@ from collections import defaultdict
 
 from engine.bracket import GROUPS, KO_MATCHES, THIRD_PLACE_SLOTS
 from engine.group_sim import GroupMatch, SimConfig, simulate_tournament
-from engine.knockout import ANNEX_C, advance_prob, play_bracket, resolve_r32
+from engine.knockout import (
+    ANNEX_C,
+    KnockoutMatchState,
+    advance_prob,
+    assert_real_bracket_consistent,
+    play_bracket,
+    resolve_r32,
+    resolve_real_winners,
+)
 
 GROUP_SET = set(GROUPS)
 
@@ -100,18 +108,128 @@ def _full_bracket():
 
 def test_play_bracket_champion_is_a_participant_and_reached_is_consistent():
     r32, elo = _full_bracket()
-    champion, reached = play_bracket(r32, elo, np.random.default_rng(7))
+    champion, reached, played = play_bracket(r32, elo, np.random.default_rng(7))
     assert champion in elo
     assert len(reached) == 32                              # all R32 teams played
     # champion must have advanced through every round it played
     assert {"r32", "r16", "qf", "sf", "final"} <= reached[champion]
+    # P17: played covers all 32 knockout matches, R32 in template orientation
+    assert set(played) == set(KO_MATCHES)
+    assert all(played[no] == r32[no] for no in r32)
 
 
 def test_play_bracket_is_deterministic_with_seed():
     r32, elo = _full_bracket()
-    c1, _ = play_bracket(r32, elo, np.random.default_rng(42))
-    c2, _ = play_bracket(r32, elo, np.random.default_rng(42))
+    c1, _, _ = play_bracket(r32, elo, np.random.default_rng(42))
+    c2, _, _ = play_bracket(r32, elo, np.random.default_rng(42))
     assert c1 == c2
+
+
+# --- P17: real-result locking -------------------------------------------------
+
+
+def _state(no, home, away, settled=True, hg=None, ag=None, winner=None):
+    return KnockoutMatchState(
+        match_no=no, home_team=home, away_team=away,
+        is_settled=settled, home_goals=hg, away_goals=ag, winner=winner,
+    )
+
+
+def test_resolve_real_winners_from_goals_and_winner_column():
+    states = {
+        73: _state(73, "RA", "RB", hg=2, ag=0),                    # decisive goals
+        74: _state(74, "WE", "TA", hg=1, ag=1, winner="away"),     # PK, fd winner
+        75: _state(75, "WF", "RC", settled=False),                 # unplayed -> absent
+        76: _state(76, "WC", "RF", hg=3, ag=3, winner=None),       # PK, winner unknown -> absent
+    }
+    resolved = resolve_real_winners(states)
+    assert resolved == {73: "RA", 74: "TA"}
+
+
+def test_resolve_real_winners_downstream_inference_orientation_insensitive():
+    # m89 = winner m74 vs winner m77; fd lists them in the OPPOSITE order to the template.
+    states = {
+        74: _state(74, "WE", "TA", hg=1, ag=1),                    # PK, no winner column
+        77: _state(77, "WI", "TC", hg=0, ag=0),
+        89: _state(89, "TC", "TA", settled=False),                 # next round pins both
+    }
+    resolved = resolve_real_winners(states)
+    assert resolved == {74: "TA", 77: "TC"}
+
+
+def test_resolve_real_winners_match_loser_inference():
+    # m103 (3rd place) participants are the SF LOSERS -> implies the SF winners.
+    states = {
+        101: _state(101, "A", "B", hg=1, ag=1),
+        102: _state(102, "C", "D", hg=2, ag=2),
+        103: _state(103, "B", "D", settled=False),
+    }
+    resolved = resolve_real_winners(states)
+    assert resolved == {101: "A", 102: "C"}
+
+
+def test_resolve_real_winners_contradiction_raises():
+    # goals say WE won m74, but the next round contains TA -> fail loud.
+    states = {
+        74: _state(74, "WE", "TA", hg=2, ag=0),
+        77: _state(77, "WI", "TC", hg=1, ag=0),
+        89: _state(89, "TA", "WI", settled=False),
+    }
+    with pytest.raises(ValueError, match="contradicts"):
+        resolve_real_winners(states)
+
+
+def test_resolve_real_winners_unrelated_participant_raises():
+    states = {
+        77: _state(77, "WI", "TC", hg=1, ag=0),
+        89: _state(89, "XX", "YY", settled=False),                 # neither played m77
+    }
+    with pytest.raises(ValueError, match="expected exactly 1"):
+        resolve_real_winners(states)
+
+
+def test_assert_real_bracket_consistent_detects_wrong_pairing():
+    states = {
+        74: _state(74, "WE", "TA", hg=2, ag=0),                    # WE won
+        77: _state(77, "WI", "TC", hg=1, ag=0),                    # WI won
+        89: _state(89, "WE", "WI", settled=False),                 # consistent
+    }
+    resolved = resolve_real_winners(states)
+    assert_real_bracket_consistent(states, resolved)               # no raise
+
+    bad = dict(states)
+    bad[89] = _state(89, "WE", "TC", settled=False)                # TC lost m77
+    with pytest.raises(ValueError):
+        resolve_real_winners(bad)                                  # caught at inference
+
+
+def test_play_bracket_fixed_winners_lock_the_whole_tree():
+    r32, elo = _full_bracket()
+    # Fabricate a fully-settled bracket: home side wins every match. resolve the
+    # expected participants by walking the template.
+    fixed: dict[int, str] = {}
+    winners: dict[int, str] = {}
+    losers: dict[int, str] = {}
+    for no in sorted(KO_MATCHES):
+        m = KO_MATCHES[no]
+        if m["stage"] == "r32":
+            home, away = r32[no]
+        else:
+            hs, as_ = m["home"], m["away"]
+            home = winners[hs["feeder"]] if hs["type"] == "match_winner" else losers[hs["feeder"]]
+            away = winners[as_["feeder"]] if as_["type"] == "match_winner" else losers[as_["feeder"]]
+        winners[no], losers[no] = home, away               # home always wins
+        fixed[no] = home
+    c1, _, played1 = play_bracket(r32, elo, np.random.default_rng(1), fixed_winners=fixed)
+    c2, _, played2 = play_bracket(r32, elo, np.random.default_rng(999), fixed_winners=fixed)
+    assert c1 == c2 == winners[104]                        # rng-independent
+    assert played1 == played2
+
+
+def test_play_bracket_fixed_winner_not_a_participant_raises():
+    r32, elo = _full_bracket()
+    with pytest.raises(ValueError, match="not a participant"):
+        play_bracket(r32, elo, np.random.default_rng(1), fixed_winners={73: "NOPE"})
 
 
 # --- Full-tournament Monte Carlo (simulate_tournament) ----------------------
@@ -158,3 +276,67 @@ def test_simulate_tournament_conservation_and_monotonicity():
     assert len(by_slot) == 32
     for total in by_slot.values():
         assert total == pytest.approx(1.0, abs=1e-9)
+
+
+# --- P17: real-bracket mode (settled-knockout locking + full-tree occupancy) --
+
+
+def test_simulate_tournament_real_bracket_locks_and_full_tree_occupancy():
+    matches, elos = _twelve_groups()
+    winners = {g: f"{g}0" for g in GROUPS}
+    runners = {g: f"{g}1" for g in GROUPS}
+    thirds = {g: f"{g}2" for g in "ABCDEFGH"}
+    r32 = resolve_r32(winners, runners, thirds)
+
+    ko_states = {no: _state(no, h, a, settled=False) for no, (h, a) in r32.items()}
+    h73, a73 = r32[73]
+    h74, a74 = r32[74]
+    h75, a75 = r32[75]
+    ko_states[73] = _state(73, h73, a73, hg=2, ag=0)                 # decisive
+    ko_states[74] = _state(74, h74, a74, hg=1, ag=1, winner="away")  # PK, fd winner
+    ko_states[75] = _state(75, h75, a75, hg=0, ag=0)                 # PK, winner pending
+
+    teams, slots = simulate_tournament(
+        matches, elos, SimConfig(n=100, seed=5), ko_states=ko_states
+    )
+    by_id = {t.team_id: t for t in teams}
+
+    # locked results are exact — winners reach R16 with prob 1, losers 0
+    assert by_id[h73].p_make_r16 == 1.0 and by_id[a73].p_make_r16 == 0.0
+    assert by_id[a74].p_make_r16 == 1.0 and by_id[h74].p_make_r16 == 0.0
+    # the pending shootout is sampled (documented transient) — the two split the slot
+    assert 0.0 < by_id[h75].p_make_r16 < 1.0
+    assert by_id[h75].p_make_r16 + by_id[a75].p_make_r16 == pytest.approx(1.0, abs=1e-9)
+
+    # teams eliminated in the group stage carry exact zeros
+    r32_teams = {t for pair in r32.values() for t in pair}
+    for tid in set(elos) - r32_teams:
+        assert by_id[tid].p_champion == 0.0 and by_id[tid].p_make_r16 == 0.0
+
+    # conservation still exact
+    assert sum(t.p_champion for t in teams) == pytest.approx(1.0, abs=1e-9)
+    assert sum(t.p_make_final for t in teams) == pytest.approx(2.0, abs=1e-9)
+
+    # occupancy covers the WHOLE tree (32 matches × 2 sides), each side summing to 1
+    by_slot: dict[tuple[int, str], float] = defaultdict(float)
+    for so in slots:
+        by_slot[(so.match_no, so.side)] += so.prob
+    assert len(by_slot) == 64
+    for total in by_slot.values():
+        assert total == pytest.approx(1.0, abs=1e-9)
+
+    # R32 slots are the real teams at prob 1.0 (template orientation)
+    top = {(so.match_no, so.side): (so.team_id, so.prob) for so in slots if so.match_no <= 88}
+    assert top[(73, "home")] == (h73, 1.0)
+    assert top[(74, "away")] == (a74, 1.0)
+
+
+def test_simulate_tournament_partial_r32_falls_back_to_pre_draw_path():
+    matches, elos = _twelve_groups()
+    # only one real R32 row -> not a complete real bracket -> Annex C path, R32-only slots
+    ko_states = {73: _state(73, "A1", "B1", settled=False)}
+    teams, slots = simulate_tournament(
+        matches, elos, SimConfig(n=50, seed=3), ko_states=ko_states
+    )
+    assert len(teams) == 48
+    assert {so.match_no for so in slots} <= set(range(73, 89))

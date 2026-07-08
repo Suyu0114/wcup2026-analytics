@@ -9,17 +9,23 @@ afterEach(cleanup);
 
 function makeMatch(p: {
   id: string;
-  group: string;
+  group: string | null;
   date: string; // YYYY-MM-DD
   upsetTier?: 'A+' | 'A' | 'B' | null;
   diverges?: boolean;
   homeName?: string;
   status?: string;
+  stage?: string;
 }): MatchView {
   return {
     match_id: p.id,
-    stage: 'group',
+    stage: p.stage ?? 'group',
     group_label: p.group,
+    match_no: p.stage && p.stage !== 'group' ? 97 : null,
+    home_goals: null,
+    away_goals: null,
+    winner: null,
+    result_duration: null,
     kickoff_utc: `${p.date}T18:00:00Z`,
     status: p.status ?? 'scheduled',
     home: { team_id: `${p.id}H`, name_en: p.homeName ?? `${p.id} Home`, name_zh: null, elo: 1900 },
@@ -120,5 +126,18 @@ describe('MatchFilters (client-side filter, Issue 7)', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: en.matches.filterUpset })); // upsets only -> none
     expect(screen.getByText(en.matches.noResults)).toBeTruthy();
     expect(screen.queryAllByRole('article')).toHaveLength(0);
+  });
+
+  it('renders knockout rows (null group_label) with a stage badge (P17)', () => {
+    render([
+      makeMatch({ id: 'qf1', group: null, stage: 'qf', date: '2026-07-09' }),
+      makeMatch({ id: 'm1', group: 'A', date: '2026-06-11' }),
+    ]);
+    expect(screen.getAllByRole('article')).toHaveLength(2);
+    expect(screen.getByText(en.stage.qf)).toBeTruthy(); // stage badge, no group chip
+    // group filter still works and simply excludes the knockout row
+    fireEvent.click(screen.getByRole('button', { name: 'A' }));
+    expect(screen.getByText('Showing 1 of 2')).toBeTruthy();
+    expect(screen.queryByText(en.stage.qf)).toBeNull();
   });
 });
